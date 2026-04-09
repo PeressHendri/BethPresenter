@@ -9,7 +9,7 @@
   },
   "files": [
     "dist/**/*",
-    "main/**/*",
+    "dist-electron/**/*",
     "node_modules/**/*",
     "prisma/schema.prisma",
     "package.json"

@@ -17,8 +17,8 @@
     --surface-active:   #2D3A4F;  /* pressed/active */
 
     /* Text */
-    --text-100: #F8FAFC;   /* slate-50  — headlines */
-    --text-200: #E2E8F0;   /* slate-200 — body */
+    --text-100: #FFFFFF;   /* pure white — headlines */
+    --text-200: #F1F5F9;   /* slate-100 — body */
     --text-400: #94A3B8;   /* slate-400 — secondary */
     --text-600: #475569;   /* slate-600 — placeholders */
     --text-muted: #334155; /* slate-700 — very muted */
@@ -122,21 +122,25 @@
 
   /* ─── Youth Bethlehem Theme ─────────────────────────────────────── */
   :root[data-theme='youthbeth'] {
-    --surface-primary:  #FFFFFF;
-    --surface-elevated: #FFFFFF;
-    --surface-sidebar:  #7F1D1D;
-    --surface-hover:    #991B1B;
-    --surface-active:   #B91C1C;
-    --surface-input:    #FEF2F2;
+    --surface-base:     #0A0A0A;
+    --surface-primary:  #111111;
+    --surface-elevated: #1A1A1A;
+    --surface-sidebar:  #450A0A;
+    --surface-popover:  #1A1A1A;
+    --surface-input:    #262626;
+    --surface-hover:    #7F1D1D;
+    --surface-active:   #991B1B;
 
-    --text-100: #1F1F1F;
-    --text-200: #111827;
-    --text-400: #6B7280;
-    --text-600: #9CA3AF;
+    --text-100: #FFFFFF;
+    --text-200: #F3F4F6;
+    --text-400: #9CA3AF;
+    --text-600: #6B7280;
+    --text-muted: #4B5563;
 
-    --border-default: #E5E7EB;
-    --border-strong:  #D1D5DB;
-    --border-accent:  rgba(192,57,43,0.6);
+    --border-subtle:  rgba(255,255,255,0.04);
+    --border-default: rgba(255,255,255,0.1);
+    --border-strong:  rgba(255,255,255,0.2);
+    --border-accent:  rgba(220,38,38,0.5);
 
     /* Semantic aliases */
     --bg-primary:   var(--surface-primary);
@@ -145,11 +149,11 @@
     --bg-hover:     var(--surface-hover);
     --text-primary: var(--text-200);
     --text-secondary: var(--text-400);
-    --accent:         #C0392B;
-    --accent-hover:   #E05454;
+    --accent:         #DC2626;
+    --accent-hover:   #EF4444;
     --accent-success: #10B981;
     --border: var(--border-default);
-    --shadow: 0 10px 25px rgba(0,0,0,0.12);
+    --shadow: 0 10px 25px rgba(0,0,0,0.5);
   }
 
   /* ─── Typography Scale ──────────────────────────────────────────── */

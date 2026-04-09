@@ -36,6 +36,8 @@ export function TitleBar() {
   const maximize = () => ipc()?.invoke('window:maximize-toggle');
   const close    = () => ipc()?.invoke('window:close');
 
+  const isMac = navigator.userAgent.includes('Mac');
+
   return (
     <div
       id="title-bar"
@@ -44,20 +46,23 @@ export function TitleBar() {
         height: 36,
         background: 'var(--surface-sidebar)',
         borderBottom: '1px solid var(--border-default)',
+        paddingLeft: isMac ? 70 : 0, // Provide safe space for native macOS traffic lights
       }}
     >
-      {/* ── Traffic-light buttons ─── */}
-      <div className="bp-no-drag-region flex items-center gap-2 px-3 shrink-0">
-        <TrafficBtn color="#FF5F57" hoverColor="#FF3B30" title="Close"    onClick={close}    symbol="✕" />
-        <TrafficBtn color="#FEBC2E" hoverColor="#FF9500" title="Minimize" onClick={minimize}  symbol="–" />
-        <TrafficBtn
-          color="#28C840"
-          hoverColor="#34C759"
-          title={isMaximized ? 'Restore' : 'Maximize'}
-          onClick={maximize}
-          symbol={isMaximized ? '⊡' : '⊞'}
-        />
-      </div>
+      {/* ── Traffic-light buttons (Windows/Linux only) ─── */}
+      {!isMac && (
+        <div className="bp-no-drag-region flex items-center gap-2 px-3 shrink-0">
+          <TrafficBtn color="#FF5F57" hoverColor="#FF3B30" title="Close"    onClick={close}    symbol="✕" />
+          <TrafficBtn color="#FEBC2E" hoverColor="#FF9500" title="Minimize" onClick={minimize}  symbol="–" />
+          <TrafficBtn
+            color="#28C840"
+            hoverColor="#34C759"
+            title={isMaximized ? 'Restore' : 'Maximize'}
+            onClick={maximize}
+            symbol={isMaximized ? '⊡' : '⊞'}
+          />
+        </div>
+      )}
 
       {/* ── App name (center) ─── */}
       <div className="flex-1 flex items-center justify-center pointer-events-none">
