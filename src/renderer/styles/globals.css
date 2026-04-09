@@ -1,9 +1,9 @@
+/* Import Design Tokens */
+@import './design-tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import Design Tokens */
-@import './design-tokens.css';
 
 /* ─── Base Reset & Body ─────────────────────────────────────────────── */
 @layer base {
