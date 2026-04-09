@@ -180,3 +180,4 @@ Semua setting disimpan ke electron-store atau SQLite tabel `settings`.
 Perubahan setting yang affect output/stage harus langsung di-broadcast via IPC.
 Gunakan layout sidebar kiri (kategori) + content kanan, seperti VS Code Settings.
 
+# BethPresenter
