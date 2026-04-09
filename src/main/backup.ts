@@ -135,10 +135,23 @@ export async function importData(
 
       manifest = JSON.parse(zip.readAsText(jsonEntry));
 
-      // Extract media files to mediaDestDir
+      // Extract media files to mediaDestDir safely
       const tmpMediaDir = path.join(mediaDestDir, '_import_tmp_' + Date.now());
       fs.mkdirSync(tmpMediaDir, { recursive: true });
-      zip.extractAllTo(tmpMediaDir, true);
+
+      const entries = zip.getEntries();
+      for (const entry of entries) {
+        // Prevent Zip Slip path traversal
+        const resolvedPath = path.resolve(tmpMediaDir, entry.entryName);
+        if (resolvedPath.startsWith(path.resolve(tmpMediaDir))) {
+          if (!entry.isDirectory) {
+            const destDir = path.dirname(resolvedPath);
+            fs.mkdirSync(destDir, { recursive: true });
+            fs.writeFileSync(resolvedPath, entry.getData());
+          }
+        }
+      }
+
       mediaDir = path.join(tmpMediaDir, 'media');
     } else if (ext === '.json') {
       manifest = JSON.parse(fs.readFileSync(srcPath, 'utf8'));
