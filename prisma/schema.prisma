@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Song {
+  id          String   @id @default(cuid())
+  title       String
+  author      String?
+  ccli        String?
+  lyricsJson  String   // JSON string: [{ label: "Verse 1", text: "..." }]
+  tags        String?  // JSON string array
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  presentations PresentationItem[]
+}
+
+model Presentation {
+  id          String   @id @default(cuid())
+  name        String
+  itemsJson   String   // JSON string: [{ type: "song", id: "xxx" }, { type: "bible", reference: "John 3:16" }]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  items PresentationItem[]
+}
+
+model PresentationItem {
+  id             String @id @default(cuid())
+  presentationId String
+  presentation   Presentation @relation(fields: [presentationId], references: [id])
+  songId         String?
+  song           Song? @relation(fields: [songId], references: [id])
+  type           String // "song", "bible", "custom", "blank"
+  content        String? // custom text or bible reference
+  order          Int
+}
+
+model BibleVerse {
+  id          String   @id @default(cuid())
+  book        String
+  bookNumber  Int
+  chapter     Int
+  verse       Int
+  text        String   // Teks ayat
+  translation String   // "KJV", "ASV", "Tagalog"
+  
+  @@unique([book, chapter, verse, translation])
+  @@index([book, chapter])
+  @@index([translation])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  filename  String
+  filepath  String   // Path absolut di lokal
+  type      String   // "image" atau "video"
+  thumbnail String?  // Base64 atau path thumbnail
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model ServiceOrder {
+  id        String   @id @default(cuid())
+  name      String   // "Sunday Service 10am"
+  itemsJson String   // JSON array urutan ibadah
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

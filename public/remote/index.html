@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BethPresenter Remote</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg: #0A0A0F;
+      --surface: #1A1A22;
+      --primary: #3B82F6;
+      --text: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --danger: #EF4444;
+      --danger-surface: rgba(239, 68, 68, 0.1);
+      --border: #2D2D3B;
+      --active-card: rgba(59, 130, 246, 0.15);
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
+    body {
+      font-family: var(--font);
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      overscroll-behavior-y: none;
+    }
+
+    button {
+      outline: none;
+      border: none;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-family: var(--font);
+      transition: opacity 0.1s;
+    }
+    button:active { opacity: 0.7; }
+
+    /* ── StatusBar ── */
+    header {
+      background-color: var(--surface);
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .status-left { display: flex; flex-direction: column; }
+    .status-title { font-size: 14px; font-weight: 700; color: var(--primary); }
+    .status-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    
+    .status-right { display: flex; align-items: center; gap: 8px; }
+    .status-indicator { width: 8px; height: 8px; border-radius: 50%; background-color: #10B981; }
+    .status-off { background-color: var(--text-muted); }
+
+    /* ── Main Layout ── */
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    /* ── Views Layout ── */
+    .view {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      padding-bottom: 80px; /* Space for nav */
+    }
+    .view.active { display: flex; }
+
+    /* ── PRESENT VIEW ── */
+    #present-view { padding: 16px; }
+    
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 768px) {
+      .dashboard-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* Current Slide Preview */
+    .preview-box {
+      background-color: var(--surface);
+      border-radius: 16px;
+      padding: 24px 16px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .preview-text {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.3;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .preview-label {
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    
+    /* Controls Area */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .btn-large {
+      min-height: 64px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-nav { background-color: var(--primary); color: white; }
+    .btn-blank.active { background-color: var(--danger-surface); color: var(--danger); border: 1px solid var(--danger); }
+
+    /* Slide List */
+    .slide-list {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .slide-list-header {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .slide-card {
+      background-color: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
+      min-height: 72px;
+      border: 2px solid transparent;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .slide-card.active {
+      border-color: var(--primary);
+      background-color: var(--active-card);
+    }
+    .slide-card-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .slide-card-text {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── BIBLE VIEW ── */
+    #bible-view { padding: 16px; }
+    
+    .search-box {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .search-input {
+      width: 100%;
+      height: 56px;
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0 16px;
+      color: var(--text);
+      font-size: 16px;
+      font-family: var(--font);
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--primary); }
+    
+    .bible-result-card {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .bible-ref { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+    .bible-text { font-size: 15px; line-height: 1.5; font-weight: 500; margin-bottom: 16px; }
+    
+    .btn-send-bible {
+      width: 100%;
+      height: 48px;
+      border-radius: 8px;
+      background-color: var(--primary);
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    /* ── INFO VIEW ── */
+    #info-view { padding: 24px; align-items: center; justify-content: center; text-align: center; }
+    .info-logo { width: 80px; height: 80px; background: var(--surface); border-radius: 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: var(--primary); }
+    
+    /* ── Bottom Nav ── */
+    nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background-color: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 20;
+    }
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 20px; }
+  </style>
+</head>
+<body>
+
+  <!-- STATUS HEADER -->
+  <header>
+    <div class="status-left">
+      <div class="status-title" id="stat-title">BethPresenter Server</div>
+      <div class="status-subtitle" id="stat-slide">Connecting...</div>
+    </div>
+    <div class="status-right">
+      <div id="stat-indicator" class="status-indicator status-off"></div>
+    </div>
+  </header>
+
+  <main id="swipe-area">
+    
+    <!-- TAB 1: PRESENT -->
+    <div id="present-view" class="view active">
+      <div class="dashboard-grid">
+         
+         <!-- Left / Top Column -->
+         <div>
+            <!-- Preview Box -->
+            <div class="preview-box" id="preview-box">
+              <div class="preview-label" id="preview-label">Current Slide</div>
+              <div class="preview-text" id="preview-text">Waiting for slide data...</div>
+            </div>
+            
+            <!-- Main Controls -->
+            <div class="controls-grid">
+              <button class="btn-large btn-nav" onclick="emit('prev-slide')">◀ PREV</button>
+              <button class="btn-large btn-nav" onclick="emit('next-slide')">NEXT ▶</button>
+              
+              <button class="btn-large" id="btn-blank" onclick="emit('toggle-blank')">⬛ BLANK</button>
+              <button class="btn-large" id="btn-hide" onclick="emit('toggle-hide')">👁 HIDE TEXT</button>
+            </div>
+         </div>
+
+         <!-- Right / Bottom Column -->
+         <div class="slide-list">
+            <div class="slide-list-header">Up Next</div>
+            <div id="slide-container">
+               <!-- Slide cards injected here -->
+            </div>
+         </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: BIBLE -->
+    <div id="bible-view" class="view">
+       <div class="search-box">
+         <input type="text" class="search-input" id="bible-input" placeholder="Type MZM 23:1 or Keywords...">
+       </div>
+       <div id="bible-results">
+         <!-- Simulated response body for UI completeness; in production REST calls handle this -->
+         <div style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px;">
+           <span style="font-size: 24px; display: block; margin-bottom: 8px;">📖</span>
+           To send a Bible verse, use the Host computer.
+         </div>
+       </div>
+    </div>
+
+    <!-- TAB 3: INFO -->
+    <div id="info-view" class="view">
+       <div class="info-logo">BP</div>
+       <h2 style="margin-bottom: 8px;">BethPresenter Remote</h2>
+       <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Connected to host via Local Network.</p>
+       
+       <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: left; width: 100%;">
+         <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+           <span style="color: var(--text-muted); font-size: 12px;">Socket Status</span>
+           <span id="info-status" style="color: #10B981; font-size: 12px; font-weight: bold;">Connected</span>
+         </div>
+         <div style="display: flex; justify-content: space-between;">
+           <span style="color: var(--text-muted); font-size: 12px;">App Version</span>
+           <span style="color: var(--text); font-size: 12px; font-weight: bold;">v2.0 PRO</span>
+         </div>
+       </div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav>
+    <div class="nav-item active" onclick="switchTab('present')">
+      <div class="nav-icon">🖥</div>
+      <span>Present</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('bible')">
+      <div class="nav-icon">📖</div>
+      <span>Bible</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('info')">
+      <div class="nav-icon">ℹ️</div>
+      <span>Info</span>
+    </div>
+  </nav>
+
+  <!-- SCRIPTS -->
+  <script>
+    // Tab switching logic
+    function switchTab(tabId) {
+      document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(`${tabId}-view`).classList.add('active');
+      event.currentTarget.classList.add('active');
+    }
+
+    // Socket.io integration
+    const socket = io();
+    const statInd = document.getElementById('stat-indicator');
+    
+    socket.on('connect', () => {
+      statInd.classList.remove('status-off');
+      document.getElementById('info-status').textContent = "Connected";
+      document.getElementById('info-status').style.color = "#10B981";
+    });
+
+    socket.on('disconnect', () => {
+      statInd.classList.add('status-off');
+      document.getElementById('info-status').textContent = "Disconnected";
+      document.getElementById('info-status').style.color = "var(--danger)";
+    });
+
+    let localState = { slides: [], currentIndex: 0, isBlank: false, isHidden: false };
+
+    socket.on('state-update', (state) => {
+      localState = { ...localState, ...state };
+      renderState();
+    });
+
+    function emit(event, data) {
+       socket.emit(event, data);
+       if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+    }
+
+    function renderState() {
+       const slides = localState.slides || [];
+       const currentItem = slides[localState.currentIndex] || { text: 'Blank Slide', label: '', songTitle: 'No Presenter Active' };
+       
+       // Header
+       document.getElementById('stat-title').textContent = currentItem.songTitle || 'BethPresenter';
+       document.getElementById('stat-slide').textContent = slides.length > 0 ? `Slide ${localState.currentIndex + 1} of ${slides.length}` : 'Waiting...';
+       
+       // Preview
+       document.getElementById('preview-text').textContent = currentItem.text || '';
+       document.getElementById('preview-label').textContent = currentItem.label || 'SLIDE';
+
+       // Blank state
+       const btnBlank = document.getElementById('btn-blank');
+       if (localState.isBlank) btnBlank.classList.add('active');
+       else btnBlank.classList.remove('active');
+
+       // Hide State
+       const btnHide = document.getElementById('btn-hide');
+       if (localState.isHidden) btnHide.classList.add('active');
+       else btnHide.classList.remove('active');
+
+       // Slides List
+       const cont = document.getElementById('slide-container');
+       cont.innerHTML = '';
+       
+       slides.forEach((sl, idx) => {
+          const div = document.createElement('div');
+          div.className = `slide-card ${idx === localState.currentIndex ? 'active' : ''}`;
+          div.onclick = () => { emit('jump-to-slide', idx); };
+          
+          div.innerHTML = `
+            <div class="slide-card-label">${sl.label || `Slide ${idx+1}`}</div>
+            <div class="slide-card-text">${sl.text || '[Blank]'}</div>
+          `;
+          
+          cont.appendChild(div);
+
+          // Scroll current item into view if it's active
+          if (idx === localState.currentIndex) {
+             div.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+       });
+    }
+
+    // Touch Swipe Logic for Next/Prev
+    let touchstartX = 0;
+    let touchendX = 0;
+    const swipeArea = document.getElementById('swipe-area');
+
+    swipeArea.addEventListener('touchstart', e => {
+      touchstartX = e.changedTouches[0].screenX;
+    });
+
+    swipeArea.addEventListener('touchend', e => {
+      touchendX = e.changedTouches[0].screenX;
+      handleSwipe();
+    });
+
+    function handleSwipe() {
+      // Must be on Present tab to swipe slides
+      if (!document.getElementById('present-view').classList.contains('active')) return;
+      
+      if (touchendX < touchstartX - 50) {
+        emit('next-slide'); // Swiped left -> Next
+      }
+      if (touchendX > touchstartX + 50) {
+        emit('prev-slide'); // Swiped right -> Prev
+      }
+    }
+  </script>
+</body>
+</html>
