@@ -146,6 +146,7 @@ export function startRemoteServer(
       });
 
       socket.on('jump-to-slide', (index: number) => {
+        if (typeof index !== 'number') return;
         if (index >= 0 && index < remoteState.slides.length) {
           remoteState.currentIndex = index;
           onSlideChange?.(index);
@@ -166,7 +167,16 @@ export function startRemoteServer(
       });
 
       socket.on('send-bible', (data: any) => {
-        onSendBible?.(data);
+        if (!data || typeof data !== 'object') return;
+        const validData = {
+          book: String(data.book),
+          chapter: Number(data.chapter),
+          verse: Number(data.verse),
+          translation: String(data.translation),
+          text: String(data.text || ''),
+          reference: String(data.reference || '')
+        };
+        onSendBible?.(validData);
         // Don't broadcast – just send to output window
       });
 
