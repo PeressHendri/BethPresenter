@@ -45,22 +45,62 @@ export function Settings() {
   const [importLoading, setImportLoading] = useState(false);
   const [backupResult, setBackupResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const [isLoaded, setIsLoaded] = useState(false);
+
   useEffect(() => { init(); }, [init]);
 
-  // IPC Hooks
-  // Broadcast Stage formatting changes
+  // Fetch initial settings
   useEffect(() => {
+    async function fetchSettings() {
+      const getSetting = async (key: string, defaultVal: any) => {
+        const val = await ipc?.invoke('setting:get', key);
+        return val !== null ? val : defaultVal;
+      };
+
+      setLanguage(await getSetting('general.language', 'id'));
+      setAutoSave(await getSetting('general.autoSave', '30s'));
+      setWakeLock(await getSetting('general.wakeLock', true));
+      setAspectRatio(await getSetting('output.aspectRatio', '16:9'));
+      setResolution(await getSetting('output.resolution', 'Auto'));
+      setOpacityOverlay(await getSetting('output.opacityOverlay', 40));
+      setTransitionFade(await getSetting('output.transition', '200ms'));
+      setStageLayout(await getSetting('stage.layout', 'A'));
+      setFontScale(await getSetting('stage.fontScale', 100));
+      setClockFormat(await getSetting('stage.clockFormat', '24'));
+      setShowClock(await getSetting('stage.showClock', true));
+      setRemotePort(await getSetting('remote.port', 4321));
+
+      setIsLoaded(true);
+    }
+    fetchSettings();
+  }, []);
+
+  // IPC Hooks
+  // Broadcast and Save Setting changes
+  useEffect(() => {
+    if (!isLoaded) return;
+    ipc?.invoke('setting:set', { key: 'general.language', value: language });
+    ipc?.invoke('setting:set', { key: 'general.autoSave', value: autoSave });
+    ipc?.invoke('setting:set', { key: 'general.wakeLock', value: wakeLock });
+    ipc?.invoke('setting:set', { key: 'output.resolution', value: resolution });
+    ipc?.invoke('setting:set', { key: 'stage.showClock', value: showClock });
+    ipc?.invoke('setting:set', { key: 'remote.port', value: remotePort });
+  }, [isLoaded, language, autoSave, wakeLock, resolution, showClock, remotePort]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
     ipc?.invoke('config:update', { category: 'stage', key: 'layout', value: stageLayout });
     ipc?.invoke('config:update', { category: 'stage', key: 'fontScale', value: fontScale });
     ipc?.invoke('config:update', { category: 'stage', key: 'clockFormat', value: clockFormat });
-  }, [stageLayout, fontScale, clockFormat]);
+  }, [isLoaded, stageLayout, fontScale, clockFormat]);
 
   // Broadcast General output formats
   useEffect(() => {
+    if (!isLoaded) return;
     ipc?.invoke('config:update', { category: 'output', key: 'transition', value: transitionFade });
     ipc?.invoke('config:update', { category: 'output', key: 'opacityOverlay', value: opacityOverlay });
     ipc?.invoke('config:update', { category: 'output', key: 'aspectRatio', value: aspectRatio });
-  }, [transitionFade, opacityOverlay, aspectRatio]);
+  }, [isLoaded, transitionFade, opacityOverlay, aspectRatio]);
 
   const startRemote = useCallback(async () => {
     setRemoteLoading(true);

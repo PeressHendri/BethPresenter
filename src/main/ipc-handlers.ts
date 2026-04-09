@@ -390,6 +390,26 @@ export function setupIpcHandlers(
     });
   });
 
+  ipcMain.handle('config:update', async (_, params: { category: string; key: string; value: any }) => {
+    const { category, key, value } = params;
+    const fullKey = `${category}.${key}`;
+    const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+
+    await prisma.setting.upsert({
+      where: { key: fullKey },
+      update: { value: strValue },
+      create: { key: fullKey, value: strValue },
+    });
+
+    const out = getOutputWindow();
+    if (out) out.webContents.send('config:updated', { category, key, value });
+
+    const stage = getStageWindow?.();
+    if (stage) stage.webContents.send('config:updated', { category, key, value });
+
+    return true;
+  });
+
   // ═══════════════════════════════════════════════════════════════
   // MEDIA HANDLERS
   // ═══════════════════════════════════════════════════════════════
