@@ -1,226 +1,268 @@
 import { create } from 'zustand';
-import { Presentation, SlideData } from '@/shared/types';
+import { SlideData } from '@/shared/types';
 
 interface PresentationState {
-  currentItems: any[];
+  // Core State
   activeItemIndex: number;
   activeSlideIndex: number;
-
-  presentations: Presentation[];
-  loadingPresentations: boolean;
-
+  activeSlideId: string | number | null;
+  currentServiceItem: any | null; 
+  currentItems: any[];
+  
   isLive: boolean;
-  isRehearsal: boolean;
   isBlank: boolean;
   isHideText: boolean;
-  toggleRehearsal: () => void;
-  
+  isRehearsal: boolean;
   remoteClientCount: number;
-  setRemoteClientCount: (count: number) => void;
-  endLive: () => void;
-  
-  addItem: (item: any) => void;
-  removeItem: (index: number) => void;
-  reorderItems: (items: any[]) => void;
 
-  addCustom: (text: string) => void;
-  addBlank: () => void;
-  clearAll: () => void;
-  
-  fetchPresentations: () => Promise<void>;
-  savePresentation: (name: string) => Promise<Presentation>;
-  loadPresentation: (presentationId: string) => Promise<void>;
-
-  openOutput: () => Promise<boolean>;
-  toggleBlank: () => Promise<boolean>;
-  toggleHideText: () => Promise<boolean>;
-  toggleFullscreen: () => Promise<boolean>;
-
-  goLive: (itemIndex: number, slideIndex: number) => Promise<void>;
+  // Actions
+  setActiveSlide: (itemIndex: number, slideIndex: number) => Promise<void>;
   nextSlide: () => void;
   prevSlide: () => void;
+  toggleBlank: () => Promise<void>;
+  toggleHideText: () => Promise<void>;
+  toggleRehearsal: () => void;
+  toggleFullscreen: () => Promise<void>;
+  openOutput: () => Promise<void>;
+  endLive: () => void;
+  
+  // High-Level Production Actions
+  goLive: (itemIndex: number, slideIndex: number) => Promise<void>;
+  reorderItems: (items: any[]) => void;
+  addBlank: () => void;
+  addCustom: (text: string) => void;
+  setRemoteClientCount: (count: number) => void;
+  
+  // Data Management
+  addItem: (item: any) => void;
+  removeItem: (index: number) => void;
+  setItems: (items: any[]) => void;
+  clearAll: () => void;
 }
 
 export const usePresentationStore = create<PresentationState>((set, get) => ({
-  currentItems: [],
   activeItemIndex: -1,
   activeSlideIndex: -1,
-  presentations: [],
-  loadingPresentations: false,
+  activeSlideId: null,
+  currentServiceItem: null,
+  currentItems: [],
+  
   isLive: false,
-  isRehearsal: false,
   isBlank: false,
   isHideText: false,
+  isRehearsal: false,
   remoteClientCount: 0,
 
-  toggleRehearsal: () => set((state) => ({ isRehearsal: !state.isRehearsal })),
-  setRemoteClientCount: (count) => set({ remoteClientCount: count }),
-  endLive: () => {
-    (window as any).electron.ipcRenderer.invoke('output:control', 'set-blank'); // Optionally clear screen
-    (window as any).electron.ipcRenderer.invoke('app:set-live-state', false);
-    set({ isLive: false, activeItemIndex: -1, activeSlideIndex: -1 });
+  setActiveSlide: async (itemIndex, slideIndex) => {
+    const { currentItems, isRehearsal } = get();
+    const item = currentItems[itemIndex];
+    if (!item) return;
+
+    // Determine Slide ID
+    const slideId = `${itemIndex}-${slideIndex}`;
+    
+    set({ 
+      activeItemIndex: itemIndex, 
+      activeSlideIndex: slideIndex,
+      activeSlideId: slideId,
+      currentServiceItem: item
+    });
+
+    // Handle Live Logic
+    if (!isRehearsal) {
+      set({ isLive: true });
+      
+      let slideData: SlideData;
+      if (item.type === 'song' && item.song) {
+        const lyrics = JSON.parse(item.song.lyricsJson);
+        const slide = lyrics[slideIndex];
+        slideData = {
+          title: item.song.title,
+          text: slide.text,
+          label: slide.label,
+          type: 'song'
+        };
+      } else if (item.type === 'scripture') {
+        slideData = {
+           title: item.title,
+           text: item.text,
+           label: item.reference,
+           type: 'scripture'
+        };
+      } else if (item.type === 'media') {
+        slideData = {
+           title: item.title,
+           text: '',
+           type: 'media',
+           url: item.url
+        };
+      } else if (item.type === 'custom') {
+        slideData = {
+           title: item.title || 'Custom Slide',
+           text: item.content,
+           type: 'song' // Render as text
+        };
+      } else {
+        slideData = { title: '', text: '', type: 'blank' };
+      }
+
+      try {
+        await (window as any).electron.ipcRenderer.invoke('output-open');
+        await (window as any).electron.ipcRenderer.invoke('slide-live', slideData);
+      } catch (err) {
+        console.error('IPC Error in setActiveSlide:', err);
+      }
+    }
   },
+
+  nextSlide: () => {
+    const { activeItemIndex, activeSlideIndex, currentItems, setActiveSlide } = get();
+    const currentItem = currentItems[activeItemIndex];
+    
+    if (!currentItem) {
+      if (currentItems.length > 0) void setActiveSlide(0, 0);
+      return;
+    }
+
+    let slideCount = 1;
+    if (currentItem.type === 'song' && currentItem.song) {
+      slideCount = JSON.parse(currentItem.song.lyricsJson).length;
+    }
+
+    if (activeSlideIndex < slideCount - 1) {
+      void setActiveSlide(activeItemIndex, activeSlideIndex + 1);
+    } else if (activeItemIndex < currentItems.length - 1) {
+      void setActiveSlide(activeItemIndex + 1, 0);
+    }
+  },
+
+  prevSlide: () => {
+    const { activeItemIndex, activeSlideIndex, currentItems, setActiveSlide } = get();
+    
+    if (activeSlideIndex > 0) {
+      void setActiveSlide(activeItemIndex, activeSlideIndex - 1);
+    } else if (activeItemIndex > 0) {
+      const prevItem = currentItems[activeItemIndex - 1];
+      let prevSlideCount = 1;
+      if (prevItem.type === 'song' && prevItem.song) {
+        prevSlideCount = JSON.parse(prevItem.song.lyricsJson).length;
+      }
+      void setActiveSlide(activeItemIndex - 1, prevSlideCount - 1);
+    }
+  },
+
+  toggleBlank: async () => {
+    const { isBlank } = get();
+    await (window as any).electron.ipcRenderer.invoke('output-blank', !isBlank);
+    set({ isBlank: !isBlank });
+  },
+
+  toggleHideText: async () => {
+    const { isHideText } = get();
+    // Assuming 'output-hide-text' handler in main if needed, or using same blank logic
+    set({ isHideText: !isHideText });
+  },
+
+  toggleRehearsal: () => set((state) => ({ isRehearsal: !state.isRehearsal })),
+
+  toggleFullscreen: async () => {
+    await (window as any).electron.ipcRenderer.invoke('output-fullscreen');
+  },
+
+  openOutput: async () => {
+    await (window as any).electron.ipcRenderer.invoke('output-open');
+  },
+
+  endLive: () => {
+    (window as any).electron.ipcRenderer.invoke('output-blank', true);
+    (window as any).electron.ipcRenderer.invoke('presentation-end-live');
+    set({ isLive: false, activeItemIndex: -1, activeSlideIndex: -1, activeSlideId: null });
+  },
+
+  goLive: async (itemIndex, slideIndex) => {
+    const { setActiveSlide } = get();
+    await setActiveSlide(itemIndex, slideIndex);
+  },
+
+  reorderItems: (items) => set({ currentItems: items }),
+
+  addBlank: () => {
+    const newItem = { id: crypto.randomUUID(), type: 'blank', title: 'Blank Slide' };
+    set((state) => ({ currentItems: [...state.currentItems, newItem] }));
+  },
+
+  addCustom: (text) => {
+    const newItem = { id: crypto.randomUUID(), type: 'custom', title: 'Custom Text', content: text };
+    set((state) => ({ currentItems: [...state.currentItems, newItem] }));
+  },
+
+  setRemoteClientCount: (count) => set({ remoteClientCount: count }),
 
   addItem: (item) => set((state) => ({ currentItems: [...state.currentItems, item] })),
   removeItem: (index) => set((state) => ({ 
     currentItems: state.currentItems.filter((_, i) => i !== index) 
   })),
-  reorderItems: (items) => set({ currentItems: items }),
-
-  addCustom: (text) =>
-    set((state) => ({
-      currentItems: [
-        ...state.currentItems,
-        {
-          id: crypto.randomUUID(),
-          type: 'custom',
-          title: 'Custom',
-          content: text,
-        },
-      ],
-    })),
-
-  addBlank: () =>
-    set((state) => ({
-      currentItems: [
-        ...state.currentItems,
-        {
-          id: crypto.randomUUID(),
-          type: 'blank',
-          title: 'Blank Screen',
-        },
-      ],
-    })),
-
-  clearAll: () => set({ currentItems: [], activeItemIndex: -1, activeSlideIndex: -1 }),
-
-  fetchPresentations: async () => {
-    set({ loadingPresentations: true });
-    try {
-      const presentations = await (window as any).electron.ipcRenderer.invoke('presentation:getAll');
-      set({ presentations, loadingPresentations: false });
-    } catch (e) {
-      console.error('Failed to fetch presentations:', e);
-      set({ loadingPresentations: false });
-    }
-  },
-
-  savePresentation: async (name) => {
-    const { currentItems } = get();
-    const saved = await (window as any).electron.ipcRenderer.invoke('presentation:save', {
-      name,
-      items: currentItems.map((i) => ({
-        type: i.type,
-        songId: i.songId,
-        content: i.content,
-      })),
-    });
-    // Refresh list after save
-    await get().fetchPresentations();
-    return saved;
-  },
-
-  loadPresentation: async (presentationId) => {
-    const { presentations } = get();
-    const p = presentations.find((x) => x.id === presentationId);
-    if (!p) return;
-    // Items returned from IPC already include song objects inside p.items
-    const items = (p.items || []).map((it) => ({
-      id: crypto.randomUUID(),
-      type: it.type,
-      songId: it.songId,
-      song: it.song,
-      content: it.content,
-      title: it.type === 'blank' ? 'Blank Screen' : it.type === 'custom' ? 'Custom' : it.song?.title,
-    }));
-    set({ currentItems: items, activeItemIndex: items.length ? 0 : -1, activeSlideIndex: items.length ? 0 : -1 });
-  },
-
-  openOutput: async () => {
-    return await (window as any).electron.ipcRenderer.invoke('output:open');
-  },
-
-  toggleBlank: async () => {
-    const result = await (window as any).electron.ipcRenderer.invoke('output:control', 'toggle-blank');
-    set((state) => ({ isBlank: !state.isBlank }));
-    return result;
-  },
-
-  toggleHideText: async () => {
-    const result = await (window as any).electron.ipcRenderer.invoke('output:control', 'toggle-hide');
-    set((state) => ({ isHideText: !state.isHideText }));
-    return result;
-  },
-
-  toggleFullscreen: async () => {
-    return await (window as any).electron.ipcRenderer.invoke('output:toggle-fullscreen');
-  },
-
-  goLive: async (itemIndex, slideIndex) => {
-    const { currentItems } = get();
-    const item = currentItems[itemIndex];
-    if (!item) return;
-
-    let slideData: SlideData;
-    
-    if (item.type === 'song' && item.song) {
-      const lyrics = JSON.parse(item.song.lyricsJson);
-      const slide = lyrics[slideIndex];
-      slideData = {
-        title: item.song.title,
-        text: slide.text,
-        label: slide.label,
-        type: 'song'
-      };
-    } else if (item.type === 'custom') {
-      slideData = {
-        title: 'Notice',
-        text: item.content || '',
-        type: 'custom'
-      };
-    } else {
-      slideData = { title: '', text: '', type: 'blank' };
-    }
-
-    if (!get().isRehearsal) {
-      set({ isLive: true, activeItemIndex: itemIndex, activeSlideIndex: slideIndex });
-      await get().openOutput();
-      (window as any).electron.ipcRenderer.invoke('output:send-slide', slideData);
-      (window as any).electron.ipcRenderer.invoke('app:set-live-state', true);
-    } else {
-      set({ activeItemIndex: itemIndex, activeSlideIndex: slideIndex });
-    }
-  },
-
-  nextSlide: () => {
-    const { activeItemIndex, activeSlideIndex, currentItems, goLive } = get();
-    const currentItem = currentItems[activeItemIndex];
-    
-    if (currentItem?.type === 'song' && currentItem.song) {
-      const lyrics = JSON.parse(currentItem.song.lyricsJson);
-      if (activeSlideIndex < lyrics.length - 1) {
-        void goLive(activeItemIndex, activeSlideIndex + 1);
-      } else if (activeItemIndex < currentItems.length - 1) {
-        void goLive(activeItemIndex + 1, 0);
-      }
-    } else if (activeItemIndex < currentItems.length - 1) {
-      void goLive(activeItemIndex + 1, 0);
-    }
-  },
-
-  prevSlide: () => {
-    const { activeItemIndex, activeSlideIndex, currentItems, goLive } = get();
-    
-    if (activeSlideIndex > 0) {
-      void goLive(activeItemIndex, activeSlideIndex - 1);
-    } else if (activeItemIndex > 0) {
-      const prevItem = currentItems[activeItemIndex - 1];
-      if (prevItem.type === 'song' && prevItem.song) {
-        const lyrics = JSON.parse(prevItem.song.lyricsJson);
-        void goLive(activeItemIndex - 1, lyrics.length - 1);
-      } else {
-        void goLive(activeItemIndex - 1, 0);
-      }
-    }
-  }
+  setItems: (items) => set({ currentItems: items }),
+  clearAll: () => set({ currentItems: [], activeItemIndex: -1, activeSlideIndex: -1, activeSlideId: null }),
 }));
+
+// ── REMOTE SYNC LOGIC ──
+if (typeof window !== 'undefined' && (window as any).electron) {
+  (window as any).electron.ipcRenderer.on('remote:control-slide', (data: any) => {
+    const store = usePresentationStore.getState();
+    if (data === 'next') store.nextSlide();
+    else if (data === 'prev') store.prevSlide();
+    else if (typeof data === 'object' && 'itemIndex' in data) {
+      void store.setActiveSlide(data.itemIndex, data.slideIndex);
+    }
+  });
+
+  (window as any).electron.ipcRenderer.on('remote:control-blank', (isBlank: boolean) => {
+    usePresentationStore.setState({ isBlank });
+  });
+
+  (window as any).electron.ipcRenderer.on('remote:control-bible', (data: any) => {
+    const store = usePresentationStore.getState();
+    const newItem = {
+      id: crypto.randomUUID(),
+      type: 'scripture',
+      title: `${data.book} ${data.chapter}:${data.verse}`,
+      text: data.text,
+      reference: `${data.book} ${data.chapter}:${data.verse}`,
+      translation: data.translation
+    };
+    store.addItem(newItem);
+    void store.setActiveSlide(store.currentItems.length - 1, 0);
+  });
+
+  // Listen for client count from main
+  (window as any).electron.ipcRenderer.on('remote:client-count', (count: number) => {
+    usePresentationStore.getState().setRemoteClientCount(count);
+  });
+
+  usePresentationStore.subscribe((state) => {
+    let slides: any[] = [];
+    if (state.currentServiceItem) {
+      if (state.currentServiceItem.type === 'song' && state.currentServiceItem.song) {
+        slides = JSON.parse(state.currentServiceItem.song.lyricsJson);
+      } else if (state.currentServiceItem.type === 'scripture') {
+        slides = [{ label: state.currentServiceItem.reference, text: state.currentServiceItem.text }];
+      }
+    }
+
+    const remoteState = {
+      currentIndex: state.activeSlideIndex,
+      activeItemIndex: state.activeItemIndex,
+      isBlank: state.isBlank,
+      isHidden: state.isHideText,
+      slides,
+      serviceItems: state.currentItems.map(item => ({
+        id: item.id,
+        type: item.type,
+        title: item.title || item.song?.title || 'Unknown',
+        slides: item.type === 'song' && item.song ? JSON.parse(item.song.lyricsJson).length : 1
+      }))
+    };
+    (window as any).electron.ipcRenderer.invoke('remote-broadcast-state', remoteState);
+  });
+}

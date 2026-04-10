@@ -7,74 +7,58 @@
   :root,
   :root[data-theme='dark'] {
     /* Surface / Background */
-    --surface-base:     #0A0F1E;  /* deepest background */
-    --surface-primary:  #0F172A;  /* main bg (slate-900) */
-    --surface-elevated: #1E293B;  /* cards, panels (slate-800) */
-    --surface-sidebar:  #0D1117;  /* sidebar (github-dark) */
-    --surface-popover:  #1A2332;  /* floating menus */
-    --surface-input:    #161D2E;  /* input fields */
-    --surface-hover:    #263044;  /* hover state */
-    --surface-active:   #2D3A4F;  /* pressed/active */
+    --surface-base:     #0A0A0A;  
+    --surface-primary:  #0F1115;  /* User requested exact */
+    --surface-elevated: #16191F;  
+    --surface-sidebar:  #0D1117;  
+    --surface-input:    #1C2128;  
+    --surface-hover:    #22272E;  
+    --surface-active:   #2D333B;  
 
     /* Text */
-    --text-100: #FFFFFF;   /* pure white — headlines */
-    --text-200: #F1F5F9;   /* slate-100 — body */
-    --text-400: #94A3B8;   /* slate-400 — secondary */
-    --text-600: #475569;   /* slate-600 — placeholders */
-    --text-muted: #334155; /* slate-700 — very muted */
+    --text-100: #FFFFFF;   
+    --text-200: #E6EDF3;   
+    --text-400: #848D97;   
+    --text-600: #484F58;   
+    --text-muted: #30363D; 
 
-    /* Accent — Maroon */
-    --accent-50:  #FFF1F0;
-    --accent-100: #FFE4E0;
-    --accent-400: #E05454;
-    --accent-500: #C0392B;  /* primary accent */
-    --accent-600: #A93226;
-    --accent-700: #922B21;
-    --accent-glow: rgba(192,57,43,0.3);
+    /* Accents (Neon) - User Exact Hex Codes */
+    --accent-green:   #00E091;  /* User: Neon Green */
+    --accent-blue:    #008CFF;  /* User: Badge Blue */
+    --accent-chorus:  #00C572;  /* User: Chorus Badge Green */
+    --accent-yellow:  #FFC83D;  
+    --accent-teal:    #00D2D2;  
+    --accent-danger:  #FF4D4D;  
+
+    /* Badge Colors */
+    --badge-verse:  var(--accent-blue);
+    --badge-chorus: var(--accent-chorus);
+    --badge-v2b:    #FF7E33; /* For contrast */
 
     /* Success / Live */
-    --success-400: #34D399;
-    --success-500: #10B981;
-    --success-glow: rgba(16,185,129,0.25);
-
-    /* Warning */
-    --warning-400: #FBBF24;
-    --warning-500: #F59E0B;
-    --warning-glow: rgba(245,158,11,0.2);
-
-    /* Danger */
-    --danger-400: #F87171;
-    --danger-500: #EF4444;
-    --danger-600: #DC2626;
-
-    /* Info */
-    --info-400: #60A5FA;
-    --info-500: #3B82F6;
+    --success-glow: rgba(0,224,145,0.25);
+    --selection-glow: rgba(0,140,255,0.35);
 
     /* Border */
-    --border-subtle:  rgba(255,255,255,0.04);
+    --border-subtle:  rgba(255,255,255,0.03);
     --border-default: rgba(255,255,255,0.08);
-    --border-strong:  rgba(255,255,255,0.16);
-    --border-accent:  rgba(192,57,43,0.5);
+    --border-strong:  rgba(255,255,255,0.15);
+    --border-accent:  var(--accent-green);
 
     /* Shadows */
     --shadow-sm:  0 1px 2px rgba(0,0,0,0.4);
     --shadow-md:  0 4px 12px rgba(0,0,0,0.5);
     --shadow-lg:  0 8px 32px rgba(0,0,0,0.6);
-    --shadow-xl:  0 20px 60px rgba(0,0,0,0.7);
-    --shadow-glow-accent: 0 0 20px var(--accent-glow);
-    --shadow-glow-live:   0 0 16px var(--success-glow);
+    --shadow-glow-neon: 0 0 15px var(--selection-glow);
 
-    /* Semantic aliases (for legacy compatibility) */
+    /* Semantic aliases */
     --bg-primary:   var(--surface-primary);
     --bg-secondary: var(--surface-elevated);
     --bg-sidebar:   var(--surface-sidebar);
     --bg-hover:     var(--surface-hover);
     --text-primary: var(--text-200);
     --text-secondary: var(--text-400);
-    --accent:         var(--accent-500);
-    --accent-hover:   var(--accent-400);
-    --accent-success: var(--success-500);
+    --accent:         var(--accent-green);
     --border: var(--border-default);
     --shadow: var(--shadow-md);
   }

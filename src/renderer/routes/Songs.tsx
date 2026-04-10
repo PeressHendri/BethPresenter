@@ -1,16 +1,15 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { 
   Plus, Search, Music, Trash2, 
   LayoutGrid, List as ListIcon, SortAsc, 
-  UploadCloud, Settings2, Download
+  UploadCloud, Settings2, Download, Layout
 } from 'lucide-react';
 import { MainLayout } from '../components/layout/MainLayout';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Scrollbar } from '../components/ui/Scrollbar';
 import { SongEditor } from '../components/SongEditor';
 import { useSongStore } from '../stores/songStore';
+import { usePresentationStore } from '../stores/presentationStore';
 import { Song } from '@/shared/types';
 import { SongCard } from '../components/songs/SongCard';
 import { SongRow } from '../components/songs/SongRow';
@@ -21,7 +20,8 @@ type TagStat = { tag: string; count: number };
 type SortOption = 'title-asc' | 'title-desc' | 'artist-asc' | 'recent';
 
 export function Songs() {
-  const { songs, fetchSongs, deleteSong, duplicateSong, bulkDeleteSongs, loading } = useSongStore();
+  const { songs, fetchSongs, deleteSong, duplicateSong, bulkDeleteSongs, loading, previewSong } = useSongStore();
+  const { addItem } = usePresentationStore();
   
   // UI State
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -38,6 +38,12 @@ export function Songs() {
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Focus search on mount
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, []);
 
   // Init fetch
   useEffect(() => {
@@ -94,27 +100,12 @@ export function Songs() {
     }
   };
 
-  const handleBulkExport = async () => {
-    if (selectedIds.size === 0) return;
-    try {
-      const res = await (window as any).electron.ipcRenderer.invoke('backup:export', { songs: true });
-      if (res.success) alert('Export completed: ' + res.filePath);
-    } catch (e) {
-      alert('Export failed');
-    }
-  };
-
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  };
-
-  const selectAll = () => {
-    if (selectedIds.size === songs.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(songs.map(s => s.id)));
   };
 
   // Local Sort application
@@ -128,185 +119,196 @@ export function Songs() {
     });
   }, [songs, sortBy]);
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0 }
+  };
+
   return (
     <MainLayout>
-      <div className="flex flex-col h-full bg-surface-base -m-5">
+      <div className="flex flex-row h-full bg-[var(--surface-primary)] -m-5 overflow-hidden">
         
-        {/* === TOP TOOLBAR === */}
-        <div className="bg-surface-elevated border-b border-border-default p-4 flex flex-col gap-4 shrink-0 px-6 pt-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-text-100 flex items-center gap-3">
-              <div className="w-10 h-10 bg-accent-500/20 text-accent-400 rounded-xl flex items-center justify-center">
-                <Music size={20} />
+        {/* === LEFT CONTENT (Library) === */}
+        <div className="flex-1 flex flex-col border-r border-[var(--border-default)] min-w-0">
+          
+          {/* Top Toolbar */}
+          <div className="bg-[var(--surface-base)] border-b border-[var(--border-subtle)] p-6 pb-4 flex flex-col gap-5 shrink-0">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-black text-white flex items-center gap-4 tracking-tighter uppercase">
+                <div className="w-12 h-12 bg-[var(--accent-blue)] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[var(--accent-blue)]/20">
+                  <Music size={24} strokeWidth={3} />
+                </div>
+                Song Library
+              </h1>
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" size="md" onClick={() => setIsImportOpen(true)} className="flex items-center gap-2">
+                  <UploadCloud size={18} /> Import
+                </Button>
+                <Button variant="accent" size="md" onClick={() => openEditor()} className="flex items-center gap-2 px-6">
+                  <Plus size={18} strokeWidth={3} /> Create Song
+                </Button>
               </div>
-              Song Library
-            </h1>
-            <div className="flex items-center gap-3">
-              <Button variant="secondary" onClick={() => setIsImportOpen(true)} className="flex items-center gap-2">
-                <UploadCloud size={16} /> Import
-              </Button>
-              <Button variant="primary" onClick={() => openEditor()} className="flex items-center gap-2">
-                <Plus size={16} /> New Song
-              </Button>
+            </div>
+
+            {/* Controls Row */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[300px] max-w-md">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-400" />
+                <input 
+                  ref={searchInputRef}
+                  placeholder="Search by title, author, or lyrics..." 
+                  className="pl-12 h-11 w-full bg-black/40 border border-white/5 rounded-xl outline-none focus:border-[var(--accent-teal)] transition-all font-medium text-sm text-white focus:ring-2 focus:ring-[var(--accent-teal)]/10"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="flex bg-black/40 rounded-xl p-1 border border-white/5">
+                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-[var(--surface-elevated)] text-white shadow-lg' : 'text-text-500 hover:text-text-200'}`}>
+                  <LayoutGrid size={18} />
+                </button>
+                <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-[var(--surface-elevated)] text-white shadow-lg' : 'text-text-500 hover:text-text-200'}`}>
+                  <ListIcon size={18} />
+                </button>
+              </div>
+
+              {(search || activeTag) && (
+                <Button variant="ghost" onClick={clearFilters} className="text-[10px] font-black uppercase tracking-widest text-[var(--accent-teal)]">
+                  Clear Filters
+                </Button>
+              )}
             </div>
           </div>
 
-          {/* Controls Hook */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[250px] max-w-sm">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-400" />
-              <Input 
-                placeholder="Search by title or lyrics..." 
-                className="pl-9 h-10 w-full"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
+          {/* Action Bar */}
+          <AnimatePresence>
+            {selectedIds.size > 0 && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 50, opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="bg-[var(--accent-blue)] text-white flex items-center px-6 shrink-0 overflow-hidden font-black text-[10px] uppercase tracking-widest"
+              >
+                 <span>{selectedIds.size} Songs Selected</span>
+                 <div className="ml-auto flex items-center gap-3">
+                   <button onClick={() => setSelectedIds(new Set())} className="hover:bg-white/10 px-3 py-1 rounded">Cancel</button>
+                   <button onClick={handleBulkDelete} className="bg-red-500 px-4 py-1.5 rounded-lg shadow-lg">Delete Selected</button>
+                 </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* View Toggle */}
-            <div className="flex bg-surface-sidebar rounded-lg p-1 border border-border-default">
-              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-surface-elevated text-text-100 shadow' : 'text-text-500 hover:text-text-300'}`}>
-                <LayoutGrid size={16} />
-              </button>
-              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-surface-elevated text-text-100 shadow' : 'text-text-500 hover:text-text-300'}`}>
-                <ListIcon size={16} />
-              </button>
-            </div>
-
-            {/* Sort Dropdown (Simulated via Select) */}
-            <div className="relative">
-               <select 
-                 className="appearance-none h-10 bg-surface-elevated border border-border-default rounded-lg pl-9 pr-8 text-sm outline-none focus:border-accent-500 cursor-pointer"
-                 value={sortBy}
-                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-               >
-                 <option value="title-asc">Sort: Title (A-Z)</option>
-                 <option value="title-desc">Sort: Title (Z-A)</option>
-                 <option value="artist-asc">Sort: Artist</option>
-                 <option value="recent">Sort: Recently Added</option>
-               </select>
-               <SortAsc size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-400 pointer-events-none" />
-            </div>
-            
-            {/* Tag Filter */}
-            {tags.length > 0 && (
-              <div className="relative">
-                 <select 
-                   className="appearance-none h-10 bg-surface-elevated border border-border-default rounded-lg pl-9 pr-8 text-sm outline-none focus:border-accent-500 cursor-pointer"
-                   value={activeTag || ''}
-                   onChange={(e) => {
-                     const val = e.target.value;
-                     setActiveTag(val || null);
-                   }}
-                 >
-                   <option value="">All Tags</option>
-                   {tags.map(t => (
-                     <option key={t.tag} value={t.tag}>{t.tag} ({t.count})</option>
-                   ))}
-                 </select>
-                 <Settings2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-400 pointer-events-none" />
+          {/* List/Grid Area */}
+          <Scrollbar className="flex-1 p-6 border-transparent">
+            {loading ? (
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="h-44 rounded-2xl bg-white/5 animate-pulse" />
+                  ))}
+               </div>
+            ) : filteredAndSortedSongs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-32 text-text-500">
+                 <Music size={64} className="opacity-10 mb-6" />
+                 <p className="font-black text-white uppercase tracking-widest text-sm">No songs found</p>
+                 <Button variant="secondary" onClick={clearFilters} className="mt-6">Reset Search</Button>
               </div>
+            ) : (
+              <motion.div 
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20" : "flex flex-col gap-1 pb-20"}
+              >
+                {filteredAndSortedSongs.map(song => (
+                  <motion.div key={song.id} variants={itemVariants}>
+                    {viewMode === 'grid' ? (
+                      <SongCard 
+                        song={song}
+                        selected={selectedIds.has(song.id)}
+                        onToggleSelect={() => toggleSelect(song.id)}
+                        onEdit={() => openEditor(song)}
+                        onDelete={() => handleDelete(song.id, song.title)}
+                        onDuplicate={() => handleDuplicate(song.id)}
+                      />
+                    ) : (
+                      <SongRow 
+                        song={song}
+                        selected={selectedIds.has(song.id)}
+                        onToggleSelect={() => toggleSelect(song.id)}
+                        onEdit={() => openEditor(song)}
+                        onDelete={() => handleDelete(song.id, song.title)}
+                        onDuplicate={() => handleDuplicate(song.id)}
+                      />
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
             )}
-            
-            {/* Clear Filters */}
-            {(search || activeTag) && (
-              <Button variant="ghost" onClick={clearFilters} className="text-xs h-10 px-3">
-                Clear Filters
-              </Button>
-            )}
-          </div>
+          </Scrollbar>
         </div>
 
-        {/* === MULTI-SELECT ACTION BAR === */}
-        <AnimatePresence>
-          {selectedIds.size > 0 && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 48, opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="bg-accent-600/20 border-b border-accent-600/30 flex items-center px-6 shrink-0 overflow-hidden"
-            >
-               <span className="text-sm font-bold text-accent-100">{selectedIds.size} songs selected</span>
-               <div className="ml-auto flex items-center gap-2">
-                 <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-text-100">Cancel</Button>
-                 <Button variant="secondary" size="sm" onClick={handleBulkExport} className="bg-surface-elevated flex items-center gap-2 border-border-default">
-                   <Download size={14} /> Export Backup
-                 </Button>
-                 <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="bg-danger/20 text-danger hover:bg-danger hover:text-white transition-colors">
-                   <Trash2 size={14} className="mr-2" /> Delete Selected
-                 </Button>
+        {/* === RIGHT PANEL (Preview) === */}
+        <div className="w-[400px] bg-[var(--surface-base)] flex flex-col shrink-0 border-l border-[var(--border-default)]">
+           <div className="p-6 border-b border-[var(--border-subtle)] bg-[var(--surface-primary)]">
+             <h2 className="text-[10px] font-black text-[var(--accent-teal)] uppercase tracking-[0.2em] mb-1">Preview Monitor</h2>
+             <p className="text-white font-black uppercase text-sm tracking-tight truncate">
+               {previewSong?.title || 'No Selection'}
+             </p>
+           </div>
+           
+           <Scrollbar className="flex-1 p-6 border-transparent bg-black/20">
+             {!previewSong ? (
+               <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                 <Layout size={48} className="mb-4" />
+                 <p className="text-[10px] font-black uppercase tracking-widest">Select a song to<br/>preview slides</p>
                </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+             ) : (
+               <div className="space-y-4">
+                 {JSON.parse(previewSong.lyricsJson || '[]').map((slide: any, i: number) => (
+                   <div key={i} className="bg-[var(--surface-elevated)] border border-white/5 rounded-xl p-4 shadow-xl">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[9px] font-black text-[var(--accent-teal)] uppercase bg-[var(--accent-teal)]/10 px-2 py-0.5 rounded">
+                          {slide.label || `Slide ${i+1}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-white/90 font-bold uppercase leading-relaxed whitespace-pre-wrap">
+                        {slide.text}
+                      </p>
+                   </div>
+                 ))}
+               </div>
+             )}
+           </Scrollbar>
 
-        {/* === MAIN CONTENT SCROLL AREA === */}
-        <Scrollbar className="flex-1 px-6 py-6 border-transparent">
-          {loading ? (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="h-40 rounded-xl bg-surface-elevated animate-pulse border border-border-default" />
-                ))}
+           {previewSong && (
+             <div className="p-6 bg-[var(--surface-primary)] border-t border-[var(--border-subtle)] flex flex-col gap-3">
+                <Button variant="accent" onClick={() => {
+                   addItem({ 
+                      id: crypto.randomUUID(), 
+                      type: 'song', 
+                      songId: previewSong.id, 
+                      song: previewSong,
+                      title: previewSong.title,
+                      slides: JSON.parse(previewSong.lyricsJson || '[]').length
+                   });
+                }} className="w-full">
+                  Add to Service
+                </Button>
+                <div className="flex items-center gap-2">
+                   <Button variant="secondary" onClick={() => openEditor(previewSong)} className="flex-1">Edit</Button>
+                   <Button variant="ghost" onClick={() => handleDelete(previewSong.id, previewSong.title)} className="text-red-500">Delete</Button>
+                </div>
              </div>
-          ) : filteredAndSortedSongs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-32 text-text-500">
-               <Music size={48} className="opacity-20 mb-4" />
-               <p className="font-semibold text-text-200">No songs found</p>
-               <p className="text-sm mt-1">Try adjusting the search or filters.</p>
-               {search && <Button variant="secondary" onClick={clearFilters} className="mt-4">Reset Search</Button>}
-            </div>
-          ) : (
-            <>
-              {viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
-                  {filteredAndSortedSongs.map(song => (
-                    <SongCard 
-                      key={song.id} 
-                      song={song}
-                      selected={selectedIds.has(song.id)}
-                      onToggleSelect={() => toggleSelect(song.id)}
-                      onEdit={() => openEditor(song)}
-                      onDelete={() => handleDelete(song.id, song.title)}
-                      onDuplicate={() => handleDuplicate(song.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col pb-20 rounded-xl overflow-hidden border border-border-default bg-surface-elevated">
-                  {/* List Header */}
-                  <div className="flex items-center gap-4 py-3 px-4 border-b border-border-strong bg-surface-sidebar sticky top-0 z-10 font-bold text-xs uppercase tracking-widest text-text-400">
-                    <div className="shrink-0 flex items-center justify-center pt-0.5">
-                       <input 
-                         type="checkbox" 
-                         checked={selectedIds.size === songs.length && songs.length > 0}
-                         onChange={selectAll}
-                         className="cursor-pointer"
-                       />
-                    </div>
-                    <div className="w-[30%]">Title</div>
-                    <div className="w-[20%]">Author</div>
-                    <div className="w-[25%]">Tags</div>
-                    <div className="w-[15%]">Info</div>
-                    <div className="flex-1 text-right">Actions</div>
-                  </div>
-                  {/* List Rows */}
-                  {filteredAndSortedSongs.map(song => (
-                    <SongRow 
-                      key={song.id} 
-                      song={song}
-                      selected={selectedIds.has(song.id)}
-                      onToggleSelect={() => toggleSelect(song.id)}
-                      onEdit={() => openEditor(song)}
-                      onDelete={() => handleDelete(song.id, song.title)}
-                      onDuplicate={() => handleDuplicate(song.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </Scrollbar>
+           )}
+        </div>
 
       </div>
 

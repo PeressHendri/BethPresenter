@@ -198,12 +198,12 @@ app.on('ready', () => {
     return net.fetch(pathToFileURL(filePath).toString());
   });
 
-  setupIpcHandlers(ipcMain, getOutputWindow, createOutputWindow, getStageWindow, createStageWindow);
+  setupIpcHandlers();
   
   // Fake brief timeout so the user actually sees the beautiful Splash Loader initializing backend models
   setTimeout(() => {
      createWindow();
-     createOutputWindow(); // Spawn invisible output
+     // createOutputWindow(); // Spawn invisible output -> Dihentikan agar tidak langsung buka saat start
   }, 1200);
 
   /* ── Custom TitleBar IPC ── */

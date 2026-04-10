@@ -2,10 +2,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TimerData {
-  duration: number;
+  seconds: number;
   title?: string;
   subtext?: string;
-  background?: { color?: string; url?: string };
+  bg?: string;
+  bgType?: 'color' | 'image';
+  showOn?: string;
 }
 
 interface TimerOverlayProps {
@@ -19,8 +21,8 @@ export function TimerOverlay({ timerData, isRunning }: TimerOverlayProps) {
   
   useEffect(() => {
     if (timerData) {
-      setRemaining(timerData.duration);
-      totalDurationRef.current = timerData.duration;
+      setRemaining(timerData.seconds);
+      totalDurationRef.current = timerData.seconds;
     }
   }, [timerData]);
 
@@ -40,64 +42,80 @@ export function TimerOverlay({ timerData, isRunning }: TimerOverlayProps) {
   const offset = circumference * (1 - progress);
 
   const formatTime = (sec: number) => {
-    const abs = Math.abs(sec);
-    const m = Math.floor(abs / 60);
-    const s = abs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    
+    const hh = h.toString().padStart(2, '0');
+    const mm = m.toString().padStart(2, '0');
+    const ss = s.toString().padStart(2, '0');
 
-  const glowClass = remaining < 60 && !isDone && isRunning ? 'animate-pulse' : '';
+    if (h > 0) return `${hh}:${mm}:${ss}`;
+    return `${mm}:${ss}`;
+  };
 
   return (
     <AnimatePresence>
        <motion.div 
-         initial={{ opacity: 0, scale: 0.95 }}
+         initial={{ opacity: 0, scale: 0.98 }}
          animate={{ opacity: 1, scale: 1 }}
-         exit={{ opacity: 0, scale: 1.05 }}
-         transition={{ duration: 0.5, ease: 'easeOut' }}
-         className="absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
-         style={{ backgroundColor: timerData.background?.color || '#0a0a1a' }}
+         exit={{ opacity: 0, scale: 1.02 }}
+         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+         className="absolute inset-0 z-[100] flex flex-col items-center justify-center pointer-events-none"
+         style={{ 
+           backgroundColor: timerData.bgType === 'color' ? timerData.bg : '#050505',
+           backgroundImage: timerData.bgType === 'image' ? `url(${timerData.bg})` : undefined,
+           backgroundSize: 'cover',
+           backgroundPosition: 'center'
+         }}
        >
-          {timerData.title && (
-             <div className="text-white/80 text-[3vw] mb-8 font-bold tracking-tight px-10 text-center" style={{ textShadow: '2px 2px 10px rgba(0,0,0,0.8)' }}>
-               {timerData.title}
-             </div>
-          )}
+          {/* Subtle vignette for better text readability */}
+          <div className="absolute inset-0 bg-black/40 shadow-[inset_0_0_200px_rgba(0,0,0,0.8)]" />
 
-          <div className={`relative flex items-center justify-center ${glowClass}`}>
-            <svg width="400" height="400" viewBox="0 0 400 400" className="-rotate-90">
-              <circle cx="200" cy="200" r="180" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="16" />
-              <circle cx="200" cy="200" r="180" fill="none"
-                stroke={isDone ? '#ef4444' : isRunning ? '#8b5cf6' : '#f59e0b'}
-                strokeWidth="16" strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                style={{ transition: 'stroke-dashoffset 1s linear', filter: 'drop-shadow(0px 0px 8px rgba(139,92,246,0.8))' }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center drop-shadow-2xl">
-              <span 
-                 className={`font-mono font-bold leading-none ${isDone ? 'text-red-400' : 'text-white'}`}
-                 style={{ 
-                    fontSize: '8vw',
-                    textShadow: isDone 
-                      ? '0 0 40px rgba(239,68,68,0.8)' 
-                      : '0 0 40px rgba(255,255,255,0.3), 4px 4px 12px rgba(0,0,0,0.9)'
-                 }}
+          <div className="relative z-10 flex flex-col items-center justify-center text-center">
+            {timerData.subtext && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-emerald-500 text-[1.5vw] font-black uppercase tracking-[0.5vw] mb-6"
               >
-                {formatTime(remaining)}
-              </span>
-              <span className="text-white/50 text-[1.5vw] mt-4 font-medium uppercase tracking-widest">
-                 {isDone ? 'Finished' : isRunning ? '' : 'Paused'}
-              </span>
+                {timerData.subtext}
+              </motion.div>
+            )}
+
+            <div className="relative">
+               <motion.span 
+                 key={remaining}
+                 initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
+                 animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                 className={`font-black tracking-tighter tabular-nums leading-none ${isDone ? 'text-red-500' : 'text-white'}`}
+                 style={{ 
+                    fontSize: '18vw',
+                    textShadow: '0 10px 40px rgba(0,0,0,0.5)'
+                 }}
+               >
+                 {formatTime(remaining)}
+               </motion.span>
+               
+               {/* Ambient Glow */}
+               <div className={`absolute inset-0 -z-10 blur-[100px] rounded-full scale-150 opacity-40 transition-colors duration-1000 ${isDone ? 'bg-red-500' : 'bg-emerald-500'}`} />
             </div>
+
+            {timerData.title && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-white/60 text-[2.5vw] mt-6 font-bold tracking-tight"
+              >
+                {timerData.title}
+              </motion.div>
+            )}
           </div>
 
-          {timerData.subtext && (
-             <div className="text-white/60 text-[2vw] mt-8 font-medium px-10 text-center uppercase tracking-widest">
-               {timerData.subtext}
-             </div>
-          )}
+          {/* Progress Circular Accent (Subtle) */}
+          <svg width="600" height="600" viewBox="0 0 400 400" className="absolute opacity-10 -rotate-90 pointer-events-none">
+            <circle cx="200" cy="200" r="180" fill="none" stroke="white" strokeWidth="2" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: 'stroke-dashoffset 1s linear' }} />
+          </svg>
        </motion.div>
     </AnimatePresence>
   );

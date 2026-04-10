@@ -79,19 +79,20 @@ export function OutputWindow() {
     unSub.push(ipc.on('output:hideText', (h: boolean) => setIsHidden(h)));
     unSub.push(ipc.on('output:blackScreen', (bk: boolean) => setIsBlack(bk)));
 
-    // Timer actions
-    unSub.push(ipc.on('timer-start', (data: any) => {
+    // Countdown Hub
+    unSub.push(ipc.on('output:countdown-start', (data: any) => {
       setTimerData(data);
       setIsTimerRunning(true);
-      if (timerTimeoutRef.current) clearTimeout(timerTimeoutRef.current);
-      // Auto dismiss timer if background overlay is needed? Handled inside TimerOverlay internally.
-      // But we need to vanish it totally when 0? Actually, it says "Selesai", can leave it until manual stop.
     }));
-    unSub.push(ipc.on('timer-stop', () => { setIsTimerRunning(false); setTimeout(() => setTimerData(null), 500); }));
-    unSub.push(ipc.on('timer-pause', () => setIsTimerRunning(false)));
-    unSub.push(ipc.on('timer-resume', () => setIsTimerRunning(true)));
+    unSub.push(ipc.on('output:countdown-pause', () => setIsTimerRunning(false)));
+    unSub.push(ipc.on('output:countdown-reset', () => {
+      setIsTimerRunning(false);
+      setTimerData(null);
+    }));
 
-    return () => unSub.forEach(fn => fn());
+    return () => unSub.forEach(fn => {
+       if (typeof fn === 'function') fn();
+    });
   }, []);
 
   // F11 fullscreen trigger

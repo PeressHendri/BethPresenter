@@ -18,7 +18,7 @@ export interface PresentationItem {
   id: string;
   presentationId: string;
   songId: string | null;
-  type: 'song' | 'bible' | 'custom' | 'blank';
+  type: 'song' | 'bible' | 'custom' | 'blank' | 'scripture' | 'media';
   content: string | null;
   order: number;
   song?: Song;
@@ -38,5 +38,6 @@ export interface SlideData {
   text: string;
   label?: string;
   background?: string;
-  type: 'song' | 'bible' | 'custom' | 'blank';
+  url?: string;
+  type: 'song' | 'bible' | 'custom' | 'blank' | 'scripture' | 'media';
 }

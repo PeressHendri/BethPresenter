@@ -2,473 +2,247 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>BethPresenter Remote</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BethPresenter Mobile</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
-      --bg: #0A0A0F;
-      --surface: #1A1A22;
-      --primary: #3B82F6;
-      --text: #F3F4F6;
-      --text-muted: #9CA3AF;
-      --danger: #EF4444;
-      --danger-surface: rgba(239, 68, 68, 0.1);
-      --border: #2D2D3B;
-      --active-card: rgba(59, 130, 246, 0.15);
-      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      --bg-black: #050505;
+      --surface-base: #121214;
+      --surface-elevated: #1e1e20;
+      --accent-teal: #00d2d2;
+      --accent-blue: #3b82f6;
+      --text-main: #ffffff;
+      --text-muted: #8e8e93;
+      --safety-area-inset-top: env(safe-area-inset-top);
+      --safety-area-inset-bottom: env(safe-area-inset-bottom);
     }
-    
+
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    
     body {
-      font-family: var(--font);
-      background-color: var(--bg);
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-black);
+      color: var(--text-main);
       height: 100vh;
       overflow: hidden;
-      overscroll-behavior-y: none;
+      display: flex;
+      flex-direction: column;
     }
 
-    button {
-      outline: none;
-      border: none;
-      background: var(--surface);
-      color: var(--text);
-      cursor: pointer;
-      font-family: var(--font);
-      transition: opacity 0.1s;
-    }
-    button:active { opacity: 0.7; }
+    button { border: none; outline: none; background: none; cursor: pointer; color: inherit; transition: opacity 0.2s; }
+    button:active { opacity: 0.5; }
 
-    /* ── StatusBar ── */
+    /* --- PIN SCREEN --- */
+    #auth-screen {
+      position: fixed; inset: 0; z-index: 1000;
+      background: var(--bg-black);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px; text-align: center;
+    }
+    .bp-logo { font-size: 48px; font-weight: 900; letter-spacing: -2px; color: var(--accent-blue); margin-bottom: 8px; }
+    .pin-label { color: var(--text-muted); font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 24px; }
+    .pin-input {
+      background: var(--surface-base); border: 2px solid var(--surface-elevated);
+      width: 100%; max-width: 250px;
+      height: 60px; border-radius: 16px;
+      text-align: center; font-size: 32px; font-weight: 900; letter-spacing: 8px;
+      color: var(--text-main); outline: none;
+    }
+    .pin-input:focus { border-color: var(--accent-blue); }
+    .connect-btn {
+      margin-top: 24px; width: 100%; max-width: 250px;
+      height: 56px; border-radius: 16px;
+      background: var(--accent-blue); color: white;
+      font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+    }
+
+    /* --- TOP BAR --- */
     header {
-      background-color: var(--surface);
-      padding: 12px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      z-index: 10;
+      padding: calc(16px + var(--safety-area-inset-top)) 20px 16px;
+      background: var(--surface-base); border-bottom: 1px solid var(--surface-elevated);
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .status-left { display: flex; flex-direction: column; }
-    .status-title { font-size: 14px; font-weight: 700; color: var(--primary); }
-    .status-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    
-    .status-right { display: flex; align-items: center; gap: 8px; }
-    .status-indicator { width: 8px; height: 8px; border-radius: 50%; background-color: #10B981; }
-    .status-off { background-color: var(--text-muted); }
+    .header-info h1 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); }
+    .header-info p { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+    .global-actions { display: flex; gap: 12px; }
+    .action-btn { 
+      width: 44px; height: 44px; border-radius: 12px; 
+      background: var(--surface-elevated);
+      display: flex; items-center; justify-content: center; font-size: 18px;
+    }
+    .action-btn.active { background: var(--accent-teal); color: black; }
 
-    /* ── Main Layout ── */
-    main {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      position: relative;
+    /* --- MAIN TABS --- */
+    main { flex: 1; overflow: hidden; position: relative; }
+    .tab-content {
+      position: absolute; inset: 0;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+      overflow-y: auto; padding: 20px;
     }
-    
-    /* ── Views Layout ── */
-    .view {
-      position: absolute;
-      inset: 0;
-      display: none;
-      flex-direction: column;
-      overflow-y: auto;
-      padding-bottom: 80px; /* Space for nav */
-    }
-    .view.active { display: flex; }
+    .tab-content.active { opacity: 1; pointer-events: auto; }
 
-    /* ── PRESENT VIEW ── */
-    #present-view { padding: 16px; }
-    
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
+    /* FLOW TAB */
+    .service-item {
+      background: var(--surface-base); border: 1px solid var(--surface-elevated);
+      border-radius: 16px; padding: 16px; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 12px;
     }
-    @media (min-width: 768px) {
-      .dashboard-grid { grid-template-columns: 1fr 1fr; }
-    }
+    .service-item.active { border-color: var(--accent-teal); background: rgba(0, 210, 210, 0.05); }
+    .item-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--surface-elevated); display: flex; align-items: center; justify-content: center; }
+    .item-info { flex: 1; min-width: 0; }
+    .item-info h2 { font-size: 13px; font-weight: 800; text-transform: uppercase; tracking: -0.2px; margin-bottom: 2px; }
+    .item-info p { font-size: 11px; color: var(--text-muted); }
 
-    /* Current Slide Preview */
-    .preview-box {
-      background-color: var(--surface);
-      border-radius: 16px;
-      padding: 24px 16px;
-      min-height: 180px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      border: 1px solid var(--border);
-      position: relative;
-      overflow: hidden;
-    }
-    .preview-text {
-      font-size: 22px;
-      font-weight: 800;
-      line-height: 1.3;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .preview-label {
-      position: absolute;
-      top: 12px;
-      left: 16px;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--text-muted);
-      font-weight: 700;
-    }
-    
-    /* Controls Area */
-    .controls-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 16px;
-    }
-    .btn-large {
-      min-height: 64px;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .btn-nav { background-color: var(--primary); color: white; }
-    .btn-blank.active { background-color: var(--danger-surface); color: var(--danger); border: 1px solid var(--danger); }
-
-    /* Slide List */
-    .slide-list {
-      margin-top: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .slide-list-header {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--text-muted);
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
+    /* LYRICS TAB */
+    .slides-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .slide-card {
-      background-color: var(--surface);
-      border-radius: 12px;
-      padding: 16px;
-      min-height: 72px;
-      border: 2px solid transparent;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      transition: all 0.2s;
+      background: var(--surface-base); border: 2px solid var(--surface-elevated);
+      border-radius: 14px; padding: 20px 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; min-height: 120px;
     }
-    .slide-card.active {
-      border-color: var(--primary);
-      background-color: var(--active-card);
-    }
-    .slide-card-label {
-      font-size: 10px;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .slide-card-text {
-      font-size: 14px;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+    .slide-card.active { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+    .slide-label { font-size: 8px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .slide-text { font-size: 13px; font-weight: 700; line-height: 1.4; color: white; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-    /* ── BIBLE VIEW ── */
-    #bible-view { padding: 16px; }
-    
-    .search-box {
-      position: relative;
-      margin-bottom: 20px;
-    }
-    .search-input {
-      width: 100%;
-      height: 56px;
-      background-color: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0 16px;
-      color: var(--text);
-      font-size: 16px;
-      font-family: var(--font);
-      outline: none;
-    }
-    .search-input:focus { border-color: var(--primary); }
-    
-    .bible-result-card {
-      background-color: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .bible-ref { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
-    .bible-text { font-size: 15px; line-height: 1.5; font-weight: 500; margin-bottom: 16px; }
-    
-    .btn-send-bible {
-      width: 100%;
-      height: 48px;
-      border-radius: 8px;
-      background-color: var(--primary);
-      color: white;
-      font-weight: 700;
-      font-size: 14px;
-    }
+    /* BIBLE TAB */
+    .search-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    .bible-in { flex: 1; height: 50px; background: var(--surface-base); border: 1px solid var(--surface-elevated); border-radius: 12px; padding: 0 16px; color: white; outline: none; }
+    .search-btn { background: var(--accent-blue); width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
 
-    /* ── INFO VIEW ── */
-    #info-view { padding: 24px; align-items: center; justify-content: center; text-align: center; }
-    .info-logo { width: 80px; height: 80px; background: var(--surface); border-radius: 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: var(--primary); }
-    
-    /* ── Bottom Nav ── */
+    /* --- BOTTOM NAV --- */
     nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 64px;
-      background-color: var(--surface);
-      border-top: 1px solid var(--border);
-      display: flex;
-      z-index: 20;
+      background: var(--surface-base); border-top: 1px solid var(--surface-elevated);
+      padding: 10px 20px calc(10px + var(--safety-area-inset-bottom));
+      display: flex; justify-content: space-around;
     }
-    .nav-item {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 600;
-    }
-    .nav-item.active { color: var(--primary); }
-    .nav-icon { font-size: 20px; }
+    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); }
+    .nav-tab.active { color: var(--accent-blue); }
+    .nav-tab span { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+
   </style>
 </head>
 <body>
 
-  <!-- STATUS HEADER -->
-  <header>
-    <div class="status-left">
-      <div class="status-title" id="stat-title">BethPresenter Server</div>
-      <div class="status-subtitle" id="stat-slide">Connecting...</div>
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen">
+    <div class="bp-logo">BETH</div>
+    <div class="pin-label">Enter 6-Digit Secure PIN</div>
+    <input type="number" id="pin-field" class="pin-input" placeholder="000000" maxlength="6">
+    <button class="connect-btn" onclick="connectRemote()">Connect Now</button>
+  </div>
+
+  <header id="main-header" style="display: none;">
+    <div class="header-info">
+      <h1 id="host-name">Presenter Remote</h1>
+      <p id="curr-item-name">Ready for production</p>
     </div>
-    <div class="status-right">
-      <div id="stat-indicator" class="status-indicator status-off"></div>
+    <div class="global-actions">
+      <button id="blank-btn" class="action-btn" onclick="sendAction('TOGGLE_BLANK')">⬛</button>
+      <button class="action-btn" onclick="sendAction('PREV_SLIDE')">◀</button>
+      <button class="action-btn" onclick="sendAction('NEXT_SLIDE')">▶</button>
     </div>
   </header>
 
-  <main id="swipe-area">
-    
-    <!-- TAB 1: PRESENT -->
-    <div id="present-view" class="view active">
-      <div class="dashboard-grid">
-         
-         <!-- Left / Top Column -->
-         <div>
-            <!-- Preview Box -->
-            <div class="preview-box" id="preview-box">
-              <div class="preview-label" id="preview-label">Current Slide</div>
-              <div class="preview-text" id="preview-text">Waiting for slide data...</div>
-            </div>
-            
-            <!-- Main Controls -->
-            <div class="controls-grid">
-              <button class="btn-large btn-nav" onclick="emit('prev-slide')">◀ PREV</button>
-              <button class="btn-large btn-nav" onclick="emit('next-slide')">NEXT ▶</button>
-              
-              <button class="btn-large" id="btn-blank" onclick="emit('toggle-blank')">⬛ BLANK</button>
-              <button class="btn-large" id="btn-hide" onclick="emit('toggle-hide')">👁 HIDE TEXT</button>
-            </div>
-         </div>
-
-         <!-- Right / Bottom Column -->
-         <div class="slide-list">
-            <div class="slide-list-header">Up Next</div>
-            <div id="slide-container">
-               <!-- Slide cards injected here -->
-            </div>
-         </div>
-
-      </div>
+  <main>
+    <div id="tab-flow" class="tab-content active">
+       <div id="flow-list"></div>
     </div>
-
-    <!-- TAB 2: BIBLE -->
-    <div id="bible-view" class="view">
-       <div class="search-box">
-         <input type="text" class="search-input" id="bible-input" placeholder="Type MZM 23:1 or Keywords...">
-       </div>
-       <div id="bible-results">
-         <!-- Simulated response body for UI completeness; in production REST calls handle this -->
-         <div style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px;">
-           <span style="font-size: 24px; display: block; margin-bottom: 8px;">📖</span>
-           To send a Bible verse, use the Host computer.
-         </div>
-       </div>
+    <div id="tab-lyrics" class="tab-content">
+       <div class="pin-label" style="margin-bottom: 12px;">Active Slide Control</div>
+       <div id="slides-grid" class="slides-grid"></div>
     </div>
-
-    <!-- TAB 3: INFO -->
-    <div id="info-view" class="view">
-       <div class="info-logo">BP</div>
-       <h2 style="margin-bottom: 8px;">BethPresenter Remote</h2>
-       <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Connected to host via Local Network.</p>
-       
-       <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: left; width: 100%;">
-         <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-           <span style="color: var(--text-muted); font-size: 12px;">Socket Status</span>
-           <span id="info-status" style="color: #10B981; font-size: 12px; font-weight: bold;">Connected</span>
-         </div>
-         <div style="display: flex; justify-content: space-between;">
-           <span style="color: var(--text-muted); font-size: 12px;">App Version</span>
-           <span style="color: var(--text); font-size: 12px; font-weight: bold;">v2.0 PRO</span>
-         </div>
+    <div id="tab-bible" class="tab-content">
+       <div class="search-row">
+         <input type="text" id="bible-search" class="bible-in" placeholder="E.g. John 3:16 or Keywords">
+         <button class="search-btn" onclick="searchBible()">🔍</button>
        </div>
+       <div id="bible-results"></div>
     </div>
-
   </main>
 
-  <!-- BOTTOM NAV -->
-  <nav>
-    <div class="nav-item active" onclick="switchTab('present')">
-      <div class="nav-icon">🖥</div>
-      <span>Present</span>
-    </div>
-    <div class="nav-item" onclick="switchTab('bible')">
-      <div class="nav-icon">📖</div>
-      <span>Bible</span>
-    </div>
-    <div class="nav-item" onclick="switchTab('info')">
-      <div class="nav-icon">ℹ️</div>
-      <span>Info</span>
-    </div>
+  <nav id="main-nav" style="display: none;">
+    <button class="nav-tab active" onclick="showTab('flow')"><span>Flow</span></button>
+    <button class="nav-tab" onclick="showTab('lyrics')"><span>Lyrics</span></button>
+    <button class="nav-tab" onclick="showTab('bible')"><span>Bible</span></button>
   </nav>
 
-  <!-- SCRIPTS -->
   <script>
-    // Tab switching logic
-    function switchTab(tabId) {
-      document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      
-      document.getElementById(`${tabId}-view`).classList.add('active');
-      event.currentTarget.classList.add('active');
+    let socket;
+    let state = { currentIndex: -1, activeItemIndex: -1, isBlank: false, serviceItems: [], slides: [] };
+
+    function connectRemote() {
+      const pin = document.getElementById('pin-field').value;
+      if (pin.length < 6) return alert('Enter full PIN');
+      socket = io();
+      socket.on('connect', () => socket.emit('join-remote', pin));
+      socket.on('auth-success', () => {
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('main-header').style.display = 'flex';
+        document.getElementById('main-nav').style.display = 'flex';
+      });
+      socket.on('auth-failure', (err) => { alert(err.message); socket.disconnect(); });
+      socket.on('state-update', (updated) => { state = { ...state, ...updated }; renderAll(); });
+      socket.on('bible-results', renderBibleResults);
     }
 
-    // Socket.io integration
-    const socket = io();
-    const statInd = document.getElementById('stat-indicator');
-    
-    socket.on('connect', () => {
-      statInd.classList.remove('status-off');
-      document.getElementById('info-status').textContent = "Connected";
-      document.getElementById('info-status').style.color = "#10B981";
-    });
-
-    socket.on('disconnect', () => {
-      statInd.classList.add('status-off');
-      document.getElementById('info-status').textContent = "Disconnected";
-      document.getElementById('info-status').style.color = "var(--danger)";
-    });
-
-    let localState = { slides: [], currentIndex: 0, isBlank: false, isHidden: false };
-
-    socket.on('state-update', (state) => {
-      localState = { ...localState, ...state };
-      renderState();
-    });
-
-    function emit(event, data) {
-       socket.emit(event, data);
-       if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+    function showTab(id) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + id).classList.add('active');
+      const tabs = Array.from(document.querySelectorAll('.nav-tab'));
+      const activeTab = tabs.find(t => t.innerText.toLowerCase().includes(id));
+      if (activeTab) activeTab.classList.add('active');
     }
 
-    function renderState() {
-       const slides = localState.slides || [];
-       const currentItem = slides[localState.currentIndex] || { text: 'Blank Slide', label: '', songTitle: 'No Presenter Active' };
-       
-       // Header
-       document.getElementById('stat-title').textContent = currentItem.songTitle || 'BethPresenter';
-       document.getElementById('stat-slide').textContent = slides.length > 0 ? `Slide ${localState.currentIndex + 1} of ${slides.length}` : 'Waiting...';
-       
-       // Preview
-       document.getElementById('preview-text').textContent = currentItem.text || '';
-       document.getElementById('preview-label').textContent = currentItem.label || 'SLIDE';
-
-       // Blank state
-       const btnBlank = document.getElementById('btn-blank');
-       if (localState.isBlank) btnBlank.classList.add('active');
-       else btnBlank.classList.remove('active');
-
-       // Hide State
-       const btnHide = document.getElementById('btn-hide');
-       if (localState.isHidden) btnHide.classList.add('active');
-       else btnHide.classList.remove('active');
-
-       // Slides List
-       const cont = document.getElementById('slide-container');
-       cont.innerHTML = '';
-       
-       slides.forEach((sl, idx) => {
-          const div = document.createElement('div');
-          div.className = `slide-card ${idx === localState.currentIndex ? 'active' : ''}`;
-          div.onclick = () => { emit('jump-to-slide', idx); };
-          
-          div.innerHTML = `
-            <div class="slide-card-label">${sl.label || `Slide ${idx+1}`}</div>
-            <div class="slide-card-text">${sl.text || '[Blank]'}</div>
-          `;
-          
-          cont.appendChild(div);
-
-          // Scroll current item into view if it's active
-          if (idx === localState.currentIndex) {
-             div.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-       });
+    function sendAction(action, payload) {
+       if (socket) socket.emit('control-action', { action, payload });
+       if (navigator.vibrate) navigator.vibrate(40);
     }
 
-    // Touch Swipe Logic for Next/Prev
-    let touchstartX = 0;
-    let touchendX = 0;
-    const swipeArea = document.getElementById('swipe-area');
+    function renderAll() {
+       const blankBtn = document.getElementById('blank-btn');
+       if (state.isBlank) blankBtn.classList.add('active');
+       else blankBtn.classList.remove('active');
+       const currentItem = state.serviceItems?.[state.activeItemIndex];
+       document.getElementById('curr-item-name').textContent = currentItem ? currentItem.title : 'Ready for production';
+       const flowList = document.getElementById('flow-list');
+       flowList.innerHTML = (state.serviceItems || []).map((item, idx) => `
+         <div class="service-item ${idx === state.activeItemIndex ? 'active' : ''}" onclick="sendAction('JUMP_TO', { itemIndex: ${idx}, slideIndex: 0 })">
+           <div class="item-icon">${item.type === 'song' ? '🎵' : '📖'}</div>
+           <div class="item-info"><h2>${item.title}</h2><p>${item.slides || 1} slides</p></div>
+         </div>
+       `).join('');
+       const grid = document.getElementById('slides-grid');
+       if (state.slides && state.slides.length > 0) {
+         grid.innerHTML = state.slides.map((sl, idx) => `
+           <div class="slide-card ${idx === state.currentIndex ? 'active' : ''}" onclick="sendAction('JUMP_TO', { itemIndex: ${state.activeItemIndex}, slideIndex: ${idx} })">
+             <div class="slide-label">${sl.label || 'Slide ' + (idx + 1)}</div>
+             <div class="slide-text">${sl.text}</div>
+           </div>
+         `).join('');
+       } else {
+         grid.innerHTML = '<div class="pin-label" style="grid-column: span 2; padding: 40px;">Select an item to see slides</div>';
+       }
+    }
 
-    swipeArea.addEventListener('touchstart', e => {
-      touchstartX = e.changedTouches[0].screenX;
-    });
+    function searchBible() {
+       const query = document.getElementById('bible-search').value;
+       if (!query) return;
+       document.getElementById('bible-results').innerHTML = '<div class="pin-label" style="text-align:center; padding: 40px;">Searching Host...</div>';
+       sendAction('BIBLE_SEARCH', query);
+    }
 
-    swipeArea.addEventListener('touchend', e => {
-      touchendX = e.changedTouches[0].screenX;
-      handleSwipe();
-    });
-
-    function handleSwipe() {
-      // Must be on Present tab to swipe slides
-      if (!document.getElementById('present-view').classList.contains('active')) return;
-      
-      if (touchendX < touchstartX - 50) {
-        emit('next-slide'); // Swiped left -> Next
-      }
-      if (touchendX > touchstartX + 50) {
-        emit('prev-slide'); // Swiped right -> Prev
-      }
+    function renderBibleResults(results) {
+       const cont = document.getElementById('bible-results');
+       if (!results || results.length === 0) { cont.innerHTML = '<div class="pin-label" style="text-align:center; padding: 40px;">No verses found</div>'; return; }
+       cont.innerHTML = results.map(res => `
+         <div class="service-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 800; color: var(--accent-teal);">${res.reference}</div>
+            <p style="font-size: 11px; line-height: 1.4; color: white;">${res.text}</p>
+            <button onclick='sendAction("SEND_BIBLE", ${JSON.stringify(res)})' style="margin-top: 10px; width: 100%; height: 36px; border-radius: 8px; background: var(--accent-blue); color: white; font-size: 11px; font-weight: 800;">SEND TO OUTPUT</button>
+         </div>
+       `).join('');
     }
   </script>
 </body>

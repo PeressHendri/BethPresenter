@@ -1,4 +1,5 @@
 import { createServer } from 'http';
+import { BrowserWindow } from 'electron';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
@@ -24,18 +25,21 @@ export interface RemoteState {
   slides: RemoteSlide[];
   isBlank: boolean;
   isHidden: boolean;
+  serviceItems?: any[];
+  activeStepIndex?: number;
 }
 
 let httpServer: ReturnType<typeof createServer> | null = null;
 let io: any = null;
 let remoteState: RemoteState = { currentIndex: 0, slides: [], isBlank: false, isHidden: false };
+let currentPin = '';
 
 // Callback set by main process
-let onSlideChange: ((index: number) => void) | null = null;
-let onBlankToggle: ((blank: boolean) => void) | null = null;
-let onHideToggle: ((hidden: boolean) => void) | null = null;
-let onSendBible: ((data: { book: string; chapter: number; verse: number; translation: string }) => void) | null = null;
-let onClientChange: ((count: number) => void) | null = null;
+let onSlideChangeCallback: ((data: any) => void) | null = null;
+let onBlankToggleCallback: ((blank: boolean) => void) | null = null;
+let onHideToggleCallback: ((hidden: boolean) => void) | null = null;
+let onSendBibleCallback: ((data: any) => void) | null = null;
+let onClientChangeCallback: ((count: number) => void) | null = null;
 
 export function getLocalIP(): string {
   const ifaces = os.networkInterfaces();
@@ -59,7 +63,6 @@ export async function generateQRCode(url: string): Promise<string> {
 }
 
 function getRemoteHtmlPath(): string {
-  // Try multiple paths for dev and prod
   const candidates = [
     path.resolve(process.cwd(), 'public/remote/index.html'),
     path.resolve(__dirname, '../../public/remote/index.html'),
@@ -74,13 +77,13 @@ function getRemoteHtmlPath(): string {
 export function startRemoteServer(
   port: number,
   callbacks: {
-    onSlideChange?: (index: number) => void;
+    onSlideChange?: (data: any) => void;
     onBlankToggle?: (blank: boolean) => void;
     onHideToggle?: (hidden: boolean) => void;
     onSendBible?: (data: any) => void;
     onClientChange?: (count: number) => void;
   }
-): Promise<{ port: number; ip: string; qrDataUrl: string }> {
+): Promise<{ port: number; ip: string; qrDataUrl: string; pin: string }> {
   return new Promise(async (resolve, reject) => {
     if (!express || !ioLib) {
       reject(new Error('express or socket.io not installed. Run: npm install express socket.io qrcode'));
@@ -88,19 +91,18 @@ export function startRemoteServer(
     }
 
     if (httpServer) {
-      // Already running
-      const ip = getLocalIP();
-      const url = `http://${ip}:${port}`;
-      const qrDataUrl = await generateQRCode(url);
-      resolve({ port, ip, qrDataUrl });
-      return;
+        const ip = getLocalIP();
+        const url = `http://${ip}:${port}/remote`;
+        const qrDataUrl = await generateQRCode(url);
+        resolve({ port, ip, qrDataUrl, pin: currentPin });
+        return;
     }
 
-    onSlideChange = callbacks.onSlideChange ?? null;
-    onBlankToggle = callbacks.onBlankToggle ?? null;
-    onHideToggle = callbacks.onHideToggle ?? null;
-    onSendBible = callbacks.onSendBible ?? null;
-    onClientChange = callbacks.onClientChange ?? null;
+    onSlideChangeCallback = callbacks.onSlideChange ?? null;
+    onBlankToggleCallback = callbacks.onBlankToggle ?? null;
+    onHideToggleCallback = callbacks.onHideToggle ?? null;
+    onSendBibleCallback = callbacks.onSendBible ?? null;
+    onClientChangeCallback = callbacks.onClientChange ?? null;
 
     const app = express();
     httpServer = createServer(app);
@@ -108,96 +110,62 @@ export function startRemoteServer(
       cors: { origin: '*', methods: ['GET', 'POST'] }
     });
 
-    // Serve static remote UI
+    currentPin = Math.floor(100000 + Math.random() * 900000).toString();
+
     const remotePath = getRemoteHtmlPath();
     if (remotePath) {
       app.use('/remote', express.static(path.dirname(remotePath), { index: 'index.html' }));
       app.get('/', (_req: any, res: any) => res.redirect('/remote'));
-    } else {
-      // Fallback inline HTML (minimal)
-      app.get('/', (_req: any, res: any) => {
-        res.send(getInlineFallback());
-      });
     }
 
-    // REST endpoint: get current state
-    app.get('/api/state', (_req: any, res: any) => {
-      res.json(remoteState);
-    });
-
-    // Socket.io events
     io.on('connection', (socket: any) => {
-      onClientChange?.(io.engine.clientsCount);
-      // Send current state to newly connected client
-      socket.emit('state-update', remoteState);
-
-      socket.on('next-slide', () => {
-        const next = Math.min(remoteState.currentIndex + 1, remoteState.slides.length - 1);
-        remoteState.currentIndex = next;
-        onSlideChange?.(next);
-        io.emit('state-update', remoteState);
-      });
-
-      socket.on('prev-slide', () => {
-        const prev = Math.max(remoteState.currentIndex - 1, 0);
-        remoteState.currentIndex = prev;
-        onSlideChange?.(prev);
-        io.emit('state-update', remoteState);
-      });
-
-      socket.on('jump-to-slide', (index: number) => {
-        if (typeof index !== 'number') return;
-        if (index >= 0 && index < remoteState.slides.length) {
-          remoteState.currentIndex = index;
-          onSlideChange?.(index);
-          io.emit('state-update', remoteState);
+      onClientChangeCallback?.(io.engine.clientsCount);
+      
+      socket.on('join-remote', (pin: string) => {
+        if (pin === currentPin) {
+          socket.join('presenter-room');
+          socket.emit('auth-success', { status: 'authorized', pin: currentPin });
+          socket.emit('state-update', remoteState);
+        } else {
+          socket.emit('auth-failure', { message: 'Invalid PIN' });
         }
       });
 
-      socket.on('toggle-blank', () => {
-        remoteState.isBlank = !remoteState.isBlank;
-        onBlankToggle?.(remoteState.isBlank);
-        io.emit('state-update', remoteState);
-      });
-
-      socket.on('toggle-hide', () => {
-        remoteState.isHidden = !remoteState.isHidden;
-        onHideToggle?.(remoteState.isHidden);
-        io.emit('state-update', remoteState);
-      });
-
-      socket.on('send-bible', (data: any) => {
-        if (!data || typeof data !== 'object') return;
-        const validData = {
-          book: String(data.book),
-          chapter: Number(data.chapter),
-          verse: Number(data.verse),
-          translation: String(data.translation),
-          text: String(data.text || ''),
-          reference: String(data.reference || '')
-        };
-        onSendBible?.(validData);
-        // Don't broadcast – just send to output window
+      socket.on('control-action', (data: { action: string; payload?: any }) => {
+        if (!socket.rooms.has('presenter-room')) return;
+        
+        switch (data.action) {
+          case 'NEXT_SLIDE': onSlideChangeCallback?.('next'); break;
+          case 'PREV_SLIDE': onSlideChangeCallback?.('prev'); break;
+          case 'JUMP_TO': onSlideChangeCallback?.(data.payload); break;
+          case 'TOGGLE_BLANK': {
+             remoteState.isBlank = !remoteState.isBlank;
+             onBlankToggleCallback?.(remoteState.isBlank);
+             io.to('presenter-room').emit('state-update', remoteState);
+             break;
+          }
+          case 'BIBLE_SEARCH': {
+             // Relay to renderer to fetch results
+             BrowserWindow.getAllWindows().forEach(win => {
+               win.webContents.send('remote:search-bible', { query: data.payload, socketId: socket.id });
+             });
+             break;
+          }
+          case 'SEND_BIBLE': onSendBibleCallback?.(data.payload); break;
+        }
       });
 
       socket.on('disconnect', () => {
-        onClientChange?.(io.engine.clientsCount);
+        onClientChangeCallback?.(io.engine.clientsCount);
       });
     });
 
     httpServer.listen(port, '0.0.0.0', async () => {
       const ip = getLocalIP();
-      const url = `http://${ip}:${port}`;
+      const url = `http://${ip}:${port}/remote`;
       const qrDataUrl = await generateQRCode(url);
-      resolve({ port, ip, qrDataUrl });
-    });
-
-    httpServer.on('error', (err: any) => {
-      if (err.code === 'EADDRINUSE') {
-        reject(new Error(`Port ${port} already in use.`));
-      } else {
-        reject(err);
-      }
+      console.log(`Remote Server started at ${url} with PIN ${currentPin}`);
+      resolve({ port, ip, qrDataUrl, pin: currentPin });
     });
   });
 }
@@ -212,19 +180,14 @@ export function stopRemoteServer(): Promise<void> {
   });
 }
 
-/** Push slide state update from main process to all remote clients */
-export function broadcastState(state: Partial<RemoteState>) {
-  remoteState = { ...remoteState, ...state };
-  if (io) io.emit('state-update', remoteState);
+export function sendToClient(socketId: string, event: string, data: any) {
+  if (io) {
+    const s = io.sockets.sockets.get(socketId);
+    if (s) s.emit(event, data);
+  }
 }
 
-function getInlineFallback(): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BethPresenter Remote</title>
-<style>body{margin:0;background:#111;color:#fff;font-family:sans-serif;text-align:center;padding:2rem}
-h1{font-size:1.5rem;color:#60a5fa}p{color:#999}
-</style></head><body>
-<h1>BethPresenter Remote</h1>
-<p>Remote UI belum tersedia.<br>Pastikan file <code>public/remote/index.html</code> sudah ada.</p>
-</body></html>`;
+export function broadcastState(state: Partial<RemoteState>) {
+  remoteState = { ...remoteState, ...state };
+  if (io) io.to('presenter-room').emit('state-update', remoteState);
 }

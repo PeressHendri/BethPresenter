@@ -282,41 +282,41 @@ function NavItemRow({
   const [showTooltip, setShowTooltip] = useState(false);
   const Icon = item.icon;
 
-  const bg          = active ? 'rgba(192,57,43,0.15)' : 'transparent';
-  const borderColor = active ? 'var(--accent-500)'    : 'transparent';
+  const bg          = active ? 'var(--accent-500)' : 'transparent';
+  const textColor   = active ? 'white' : 'var(--text-400)';
 
   const inner = (
     <motion.div
-      onHoverStart={() => { if (!expanded) setTimeout(() => setShowTooltip(true), 350); }}
+      onHoverStart={() => { if (!expanded) setTimeout(() => setShowTooltip(true), 150); }}
       onHoverEnd={() => setShowTooltip(false)}
-      whileHover={{ backgroundColor: active ? 'rgba(192,57,43,0.18)' : 'var(--surface-hover)' }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={{ scale: 1.02, backgroundColor: active ? 'var(--accent-400)' : 'var(--surface-hover)' }}
+      whileTap={{ scale: 0.94 }}
       style={{
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: expanded ? '8px 10px' : '8px 0',
-        margin: '1px 6px',
-        borderRadius: 8,
+        gap: 12,
+        padding: expanded ? '10px 14px' : '10px 0',
+        margin: '2px 8px',
+        borderRadius: 12,
         cursor: 'pointer',
         background: bg,
-        borderLeft: `3px solid ${borderColor}`,
         justifyContent: expanded ? 'flex-start' : 'center',
         overflow: 'visible',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: active ? '0 4px 12px rgba(0,210,210,0.3)' : 'none',
       }}
-      transition={{ duration: 0.12 }}
     >
       {/* Icon */}
       <span
         style={{
-          color: active ? 'var(--accent-400)' : 'var(--text-400)',
+          color: textColor,
           flexShrink: 0,
           display: 'flex',
-          transition: 'color 0.15s',
+          transition: 'color 0.15s, transform 0.2s',
         }}
       >
-        <Icon size={18} />
+        <Icon size={20} strokeWidth={active ? 2.5 : 2} />
       </span>
 
       {/* Label — animate in/out */}
@@ -328,14 +328,15 @@ function NavItemRow({
             initial="collapsed"
             animate="expanded"
             exit="collapsed"
-            transition={{ duration: 0.16, delay: 0.04 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             style={{
               fontSize: 13,
-              fontWeight: active ? 600 : 500,
-              color: active ? 'var(--text-100)' : 'var(--text-400)',
+              fontWeight: active ? 700 : 500,
+              color: textColor,
               whiteSpace: 'nowrap',
               flex: 1,
               overflow: 'hidden',
+              letterSpacing: '-0.01em',
             }}
           >
             {item.label}
@@ -348,67 +349,68 @@ function NavItemRow({
         {expanded && item.badge !== undefined && item.badge > 0 && (
           <motion.span
             key="badge"
-            initial={{ opacity: 0, scale: 0.7 }}
+            initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.7 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, scale: 0.5 }}
             style={{
               marginLeft: 'auto',
-              background: 'var(--accent-600)',
-              color: '#fff',
+              background: 'white',
+              color: 'var(--accent-600)',
               fontSize: 9,
-              fontWeight: 700,
-              borderRadius: 8,
-              padding: '1px 5px',
-              minWidth: 16,
+              fontWeight: 800,
+              borderRadius: 6,
+              padding: '1px 4px',
+              minWidth: 14,
               textAlign: 'center',
-              lineHeight: 1.6,
+              lineHeight: 1,
             }}
           >
-            {item.badge > 99 ? '99+' : item.badge}
+            {item.badge}
           </motion.span>
         )}
       </AnimatePresence>
 
-      {/* Floating tooltip (collapsed only) */}
+      {/* Modern Tooltip (collapsed only) */}
       <AnimatePresence>
         {showTooltip && !expanded && (
           <motion.div
             key="tooltip"
-            variants={tooltipVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            transition={{ duration: 0.12 }}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             style={{
               position: 'absolute',
-              left: 'calc(100% + 10px)',
+              left: 'calc(100% + 14px)',
               top: '50%',
               transform: 'translateY(-50%)',
-              background: 'var(--surface-elevated)',
-              border: '1px solid var(--border-strong)',
+              background: 'var(--text-100)',
               borderRadius: 8,
-              padding: '5px 10px',
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--text-200)',
+              padding: '6px 12px',
+              fontSize: 11,
+              fontWeight: 700,
+              color: 'var(--surface-base)',
               whiteSpace: 'nowrap',
-              boxShadow: 'var(--shadow-md)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
               zIndex: 9999,
               pointerEvents: 'none',
+              letterSpacing: '0.02em',
+              textTransform: 'uppercase',
             }}
           >
             {item.label}
             {/* Arrow */}
-            <span
+            <div
               style={{
                 position: 'absolute',
                 right: '100%',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                borderWidth: '4px 4px 4px 0',
-                borderStyle: 'solid',
-                borderColor: 'transparent var(--border-strong) transparent transparent',
+                width: 0,
+                height: 0,
+                borderTop: '6px solid transparent',
+                borderBottom: '6px solid transparent',
+                borderRight: '6px solid var(--text-100)',
               }}
             />
           </motion.div>
@@ -421,7 +423,7 @@ function NavItemRow({
     return (
       <button
         onClick={item.action}
-        style={{ width: '100%', background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
+        style={{ width: '100%', background: 'none', border: 'none', padding: 0, textAlign: 'left', outline: 'none' }}
       >
         {inner}
       </button>
@@ -429,7 +431,7 @@ function NavItemRow({
   }
 
   return (
-    <Link to={item.path} style={{ display: 'block', textDecoration: 'none' }}>
+    <Link to={item.path} style={{ display: 'block', textDecoration: 'none', outline: 'none' }}>
       {inner}
     </Link>
   );

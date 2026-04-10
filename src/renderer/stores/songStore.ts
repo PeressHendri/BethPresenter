@@ -4,6 +4,9 @@ import { Song } from '@/shared/types';
 interface SongState {
   songs: Song[];
   loading: boolean;
+  previewSong: Song | null;
+  
+  setPreviewSong: (song: Song | null) => void;
   fetchSongs: (search?: string, tag?: string) => Promise<void>;
   createSong: (data: Partial<Song>) => Promise<Song>;
   updateSong: (id: string, data: Partial<Song>) => Promise<Song>;
@@ -15,6 +18,10 @@ interface SongState {
 export const useSongStore = create<SongState>((set) => ({
   songs: [],
   loading: false,
+  previewSong: null,
+
+  setPreviewSong: (song) => set({ previewSong: song }),
+
   fetchSongs: async (search, tag) => {
     set({ loading: true });
     try {
