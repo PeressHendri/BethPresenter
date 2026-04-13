@@ -1,0 +1,22 @@
+{
+  "name": "beth-presenter-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "electron"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "frontend": "npm run dev -w frontend",
+    "backend": "npm run dev -w backend",
+    "electron": "npm start -w electron"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  },
+  "dependencies": {
+    "multer": "^2.1.1"
+  }
+}
