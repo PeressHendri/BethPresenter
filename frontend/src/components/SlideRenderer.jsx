@@ -46,21 +46,25 @@ const SlideRenderer = React.memo(({
   }, [slide, globalBg]);
 
   // Robust Normalization
-  const slideType = (slide?.type || slide?.contentType || 'song').toLowerCase();
-  const slideContent = slide?.content || (slide?.slides && slide?.slides[0]?.content) || slide?.data?.content;
-  const slideLabel = slide?.label || slide?.data?.label;
+  // Unify and Robustly Extract Slide Properties
+  const d = slide?.data || slide || {};
+  const s = d.slides && d.slides[0] ? d.slides[0] : d;
   
-  const slideUrl = slide?.url || slide?.mediaUrl || slide?.path || 
-                   (slide?.slides && (slide.slides[0]?.url || slide.slides[0]?.mediaUrl || slide.slides[0]?.path)) || 
-                   slide?.data?.url || slide?.data?.mediaUrl || slide?.data?.path;
+  const rawType = d.contentType || d.type || s.type || slide?.contentType || slide?.type || 'song';
+  const slideType = rawType.toLowerCase();
+
+  const slideContent = d.content || s.content;
+  const slideLabel = d.label || slide?.label || d.title;
+
+  const slideUrl = d.url || d.mediaUrl || s.url || s.mediaUrl || s.path || d.path;
                    
-  const slideEmbedUrl = slide?.embedUrl || 
-                        (slide?.slides && slide.slides[0]?.embedUrl) || 
-                        slide?.data?.embedUrl;
+  const slideEmbedUrl = d.embedUrl || s.embedUrl;
 
   const isVideo = slideType === 'video' || (slideUrl && slideUrl.match(/\.(mp4|webm|ogg|mov)$/i));
   const isImage = slideType === 'image' || (slideUrl && slideUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i));
   const isPPT = slideType === 'ppt' || !!slideEmbedUrl;
+  const isCountdown = slideType === 'countdown';
+  const isBible = slideType === 'bible';
 
   const textFormat = useMemo(() => format || slide?.format || slide?.data?.format || {}, [format, slide]);
 
@@ -180,8 +184,38 @@ const SlideRenderer = React.memo(({
       );
     }
 
+    // Handle Countdown
+    if (isCountdown) {
+      const mins = Math.floor((d.remainingSeconds || 0) / 60);
+      const secs = (d.remainingSeconds || 0) % 60;
+      const timeStr = mins + ':' + String(secs).padStart(2,'0');
+
+      return (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-[8cqw] pointer-events-none z-20">
+          {d.title && <div className="text-[3cqw] text-white/50 font-[900] tracking-[0.2em] uppercase mb-[2cqw]">{d.title}</div>}
+          <div className="text-[20cqw] font-[950] text-white leading-none">{timeStr}</div>
+          {d.message && <div className="text-[2.5cqw] text-white/40 font-[700] tracking-[0.2em] uppercase mt-[2cqw]">{d.message}</div>}
+        </div>
+      );
+    }
+
     // Default: Text Overlay (Songs / Bible)
-    if (!slideContent) return null;
+    if (!slideContent && !isBible) return null;
+
+    // Handle Bible Structure
+    if (isBible) {
+      const ref = d.reference || slideLabel || '';
+      const verse = slideContent || '';
+      const isRefBottom = d.referencePos === 'bottom';
+
+      return (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-[8cqw] pointer-events-none z-20 gap-[2vh] text-center w-full">
+          {!isRefBottom && ref && <div className="font-['Outfit'] text-[clamp(14px,2vh,26px)] text-white/45 font-bold tracking-[0.2em] uppercase w-full">{ref}</div>}
+          <div className="font-['Outfit'] text-white font-bold leading-[1.5] whitespace-pre-wrap w-full text-[clamp(24px,4cqw,80px)]">{verse}</div>
+          {isRefBottom && ref && <div className="font-['Outfit'] text-[clamp(14px,2vh,26px)] text-white/45 font-bold tracking-[0.2em] uppercase w-full">{ref}</div>}
+        </div>
+      );
+    }
 
     const textStyles = {
       fontFamily: textFormat.fontFamily ? `'${textFormat.fontFamily}', Outfit, sans-serif` : "'Outfit', sans-serif",
@@ -191,11 +225,18 @@ const SlideRenderer = React.memo(({
       fontStyle: textFormat.isItalic ? 'italic' : 'normal',
       textAlign: textFormat.textAlign || textFormat.alignment || 'center',
       lineHeight: textFormat.lineHeight || 1.15,
+      letterSpacing: textFormat.spacing ? `${textFormat.spacing}px` : 'normal',
       textShadow: textFormat.shadowType === 'Strong' 
-        ? '0.4cqw 0.4cqw 0 rgba(0,0,0,0.9), 0.8cqw 0.8cqw 0 rgba(0,0,0,0.4)'
-        : '0 0.5cqw 1.5cqw rgba(0,0,0,0.85)',
+        ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)'
+        : textFormat.shadowType === 'Large'
+        ? '0 10px 40px rgba(0,0,0,0.85)'
+        : textFormat.shadowType === 'Glow'
+        ? `0 0 20px ${textFormat.textColor || '#FFFFFF'}`
+        : textFormat.shadowType === 'None'
+        ? 'none'
+        : '0 4px 16px rgba(0,0,0,0.85)',
       backgroundColor: textFormat.bgOpacity > 0 
-        ? (textFormat.textBackgroundColor || `rgba(128,0,0,${textFormat.bgOpacity/100})`) 
+        ? ((textFormat.textBackgroundColor && !textFormat.textBackgroundColor.startsWith('#')) ? textFormat.textBackgroundColor : `rgba(${textFormat.textBackgroundColor ? parseInt(textFormat.textBackgroundColor.slice(1,3),16)+','+parseInt(textFormat.textBackgroundColor.slice(3,5),16)+','+parseInt(textFormat.textBackgroundColor.slice(5,7),16) : '0,0,0'},${textFormat.bgOpacity/100})`)
         : 'transparent',
       padding: '2cqw',
       borderRadius: '1cqw',
@@ -204,14 +245,17 @@ const SlideRenderer = React.memo(({
     const vAlign = textFormat.vAlignment || 'Center';
     const verticalAlignClass = vAlign === 'Top' ? 'items-start' : vAlign === 'Bottom' ? 'items-end' : 'items-center';
 
+    // Add textTransform
+    textStyles.textTransform = textFormat.isUppercase ? 'uppercase' : 'none';
+
     return (
-      <div className={`absolute inset-0 flex ${verticalAlignClass} justify-center p-[8cqw] pointer-events-none z-20`}>
+      <div className={`absolute inset-0 flex flex-col ${verticalAlignClass} justify-center p-[8cqw] pointer-events-none z-20`}>
         {slideLabel && showLabel && (
           <div className="absolute top-[4cqw] left-[4cqw] text-white/40 text-[1.2cqw] font-black uppercase tracking-[0.3em] bg-black/20 px-[0.8cqw] py-[0.3cqw] rounded backdrop-blur-sm">
             {slideLabel}
           </div>
         )}
-        <div style={textStyles} className="whitespace-pre-wrap break-words w-full text-center">
+        <div style={textStyles} className="whitespace-pre-wrap break-words w-full">
           {slideContent}
         </div>
       </div>

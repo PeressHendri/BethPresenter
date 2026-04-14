@@ -74,7 +74,7 @@ const DisplayClientPage = () => {
         slide={slide}
         format={slide?.format}
         globalBg={globalBg}
-        showLabel={true}
+        showLabel={false}
         showLiveIndicator={false}
         showControls={false}
       />

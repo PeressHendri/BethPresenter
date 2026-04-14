@@ -348,13 +348,21 @@ const FlowPanel = React.memo(({ t, liveState, goToNextSlide, goToPrevSlide, togg
                   let nextFormat = liveState.format;
                   if (selectedItemIndex !== null) {
                     const currentItem = schedule[selectedItemIndex];
-                    if (liveState.slideIndex < currentItem.slides.length - 1) {
-                      nextSlide = currentItem.slides[liveState.slideIndex + 1];
-                      nextFormat = currentItem.format || liveState.format;
-                    } else if (selectedItemIndex < schedule.length - 1) {
-                      const nextItem = schedule[selectedItemIndex + 1];
-                      nextSlide = nextItem.slides[0];
-                      nextFormat = nextItem.format || liveState.format;
+                    if (currentItem.type === 'media' || currentItem.type === 'image' || currentItem.type === 'video' || currentItem.type === 'ppt' || currentItem.type === 'Media') {
+                       if (selectedItemIndex < schedule.length - 1) {
+                         const nextItem = schedule[selectedItemIndex + 1];
+                         nextSlide = nextItem.type === 'media' ? nextItem : nextItem.slides[0];
+                         nextFormat = nextItem.format || liveState.format;
+                       }
+                    } else {
+                        if (liveState.slideIndex < currentItem.slides.length - 1) {
+                          nextSlide = currentItem.slides[liveState.slideIndex + 1];
+                          nextFormat = currentItem.format || liveState.format;
+                        } else if (selectedItemIndex < schedule.length - 1) {
+                          const nextItem = schedule[selectedItemIndex + 1];
+                          nextSlide = nextItem.type === 'media' ? nextItem : nextItem.slides[0];
+                          nextFormat = nextItem.format || liveState.format;
+                        }
                     }
                   }
                   if (nextSlide) {
