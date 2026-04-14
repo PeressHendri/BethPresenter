@@ -43,7 +43,7 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
    const [isCustomOrderEnabled, setIsCustomOrderEnabled] = useState(false);
    
    // Format States
-   const [fontFamily, setFontFamily] = useState('Poppins');
+   const [fontFamily, setFontFamily] = useState('Outfit');
    const [fontSize, setFontSize] = useState(102);
    const [isBold, setIsBold] = useState(true);
    const [isItalic, setIsItalic] = useState(false);
@@ -83,20 +83,24 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
          setCustomOrder(song.customOrder || []);
          setIsCustomOrderEnabled(!!song.customOrder?.length);
          if (song.format) {
-            setFontFamily(song.format.fontFamily || 'Poppins');
+            setFontFamily(song.format.fontFamily || 'Outfit');
             setFontSize(song.format.fontSize || 102);
             setIsBold(song.format.isBold !== undefined ? song.format.isBold : true);
+            setIsItalic(song.format.isItalic || false);
+            setIsUnderline(song.format.isUnderline || false);
+            setIsUppercase(song.format.isUppercase || false);
             setSpacing(song.format.spacing || 0);
-            setLineHeight(song.format.lineHeight || 1.4);
+            setLineHeight(song.format.lineHeight || 1.15);
             setTextColor(song.format.textColor || '#FFFFFF');
+            setTxtBgColor(song.format.textBackgroundColor || '#000000');
             setBgOpacity(song.format.bgOpacity !== undefined ? song.format.bgOpacity : 0);
             setRadius(song.format.radius || 0);
-            setShadowType(song.format.shadowType || 'None');
+            setShadowType(song.format.shadowType || 'Soft');
             setBgMediaUrl(song.format.bgMediaUrl || '');
             setAlignment(song.format.alignment || 'center');
             setVAlignment(song.format.vAlignment || 'Center');
             setAnimType(song.format.animType || 'None');
-            setAnimDuration(song.format.animDuration || 'Medium (0.6s)');
+            setAnimDuration(song.format.animDuration || 0.6);
          }
          setCurrentSlideIndex(0);
       } else if (isOpen) {
@@ -278,7 +282,7 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
                                     </div>
                                     {activeDropdown === 'font' && (
                                        <div className="absolute top-[calc(100%+2px)] left-0 w-full bg-white border border-[#E2E2E6] shadow-2xl z-[100] py-1">
-                                          {['Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat'].map(f => <div key={f} onClick={()=>{setFontFamily(f); setActiveDropdown(null);}} className="px-5 py-2 hover:bg-[#800000] hover:text-white text-[12px] font-bold text-[#6C6C70] cursor-pointer">{f}</div>)}
+                                          {['Outfit', 'Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat'].map(f => <div key={f} onClick={()=>{setFontFamily(f); setActiveDropdown(null);}} className="px-5 py-2 hover:bg-[#800000] hover:text-white text-[12px] font-bold text-[#6C6C70] cursor-pointer">{f}</div>)}
                                        </div>
                                     )}
                                  </div>
@@ -340,7 +344,7 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
                                     </div>
                                     {activeDropdown === 'shadow' && (
                                        <div className="absolute top-[calc(100%+2px)] left-0 w-full bg-white border border-[#E2E2E6] shadow-2xl z-[100] py-1">
-                                          {['None', 'Soft', 'Strong', 'Glow'].map(st => <div key={st} onClick={()=>{setShadowType(st); setActiveDropdown(null);}} className="px-5 py-2 hover:bg-[#800000] hover:text-white text-[10px] font-bold text-[#6C6C70] cursor-pointer">{st}</div>)}
+                                          {['None', 'Soft', 'Strong', 'Large', 'Glow'].map(st => <div key={st} onClick={()=>{setShadowType(st); setActiveDropdown(null);}} className="px-5 py-2 hover:bg-[#800000] hover:text-white text-[10px] font-bold text-[#6C6C70] cursor-pointer">{st}</div>)}
                                        </div>
                                     )}
                                  </div>
@@ -439,20 +443,24 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
                               ref={textareaRef}
                               className="w-full bg-transparent border-none outline-none resize-none font-bold placeholder:text-white/70 text-center transition-all duration-300 custom-scrollbar overflow-hidden px-8"
                               style={{ 
-                                 fontFamily, 
+                                 fontFamily: `'${fontFamily}', Outfit, sans-serif`, 
                                  fontSize: `${fontSize}px`, 
                                  fontWeight: isBold ? '900' : 'normal', 
                                  fontStyle: isItalic ? 'italic' : 'normal',
                                  textDecoration: isUnderline ? 'underline' : 'none',
                                  textTransform: isUppercase ? 'uppercase' : 'none',
                                  letterSpacing: `${spacing}px`, 
-                                 lineHeight, 
+                                 lineHeight: lineHeight, 
                                  color: textColor, 
                                  textAlign: alignment,
-                                 backgroundColor: bgOpacity > 0 ? (txtBgColor + Math.round(bgOpacity * 2.55).toString(16).padStart(2, '0')) : 'transparent',
+                                 backgroundColor: bgOpacity > 0 ? (`${txtBgColor}${Math.round(bgOpacity * 2.55).toString(16).padStart(2, '0')}`) : 'transparent',
                                  borderRadius: `${radius}px`,
-                                 padding: '20px',
-                                 textShadow: shadowType === 'None' ? 'none' : shadowType === 'Soft' ? '0 4px 16px rgba(0,0,0,0.85)' : shadowType === 'Strong' ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)' : shadowType === 'Large' ? '0 10px 40px rgba(0,0,0,0.85)' : shadowType === 'Glow' ? `0 0 20px ${textColor}` : '0 4px 16px rgba(0,0,0,0.85)'
+                                 padding: '10px 20px',
+                                 textShadow: shadowType === 'None' ? 'none' : 
+                                             shadowType === 'Soft' ? '0 4px 16px rgba(0,0,0,0.85)' : 
+                                             shadowType === 'Strong' ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)' : 
+                                             shadowType === 'Large' ? '0 10px 40px rgba(0,0,0,0.85)' : 
+                                             shadowType === 'Glow' ? `0 0 20px ${textColor}` : '0 4px 16px rgba(0,0,0,0.85)'
                               }}
                               value={currentSlide?.content}
                               placeholder="Ketik Disini Lirik nya"

@@ -24,8 +24,8 @@ const DisplayClientPage = () => {
     socketRef.current.on('disconnect', () => setIsConnected(false));
     
     socketRef.current.on('sync-slide', (data) => {
-      // Flatten data if nested in payload
-      const slideData = data?.payload || data;
+      // Prioritize 'data' or 'payload' fields which contain the full envelope
+      const slideData = data?.data || data?.payload || data;
       setSlide(slideData);
       
       const incomingBg = slideData?.globalBackground || slideData?.data?.globalBackground;
@@ -43,8 +43,9 @@ const DisplayClientPage = () => {
 
     // LOCAL LISTENER (For local output window)
     const handleMessage = (e) => {
-      if (e.data?.type === 'SET_LIVE_SLIDE') {
-        const slideData = e.data.payload?.payload || e.data.payload;
+      if (e.data?.type === 'SET_LIVE_SLIDE' || e.data?.type === 'UPDATE_SLIDE') {
+        // Handle both SET_LIVE_SLIDE and UPDATE_SLIDE (from broadcast helper)
+        const slideData = e.data.data || e.data.payload || e.data;
         setSlide(slideData);
         
         const incomingBg = slideData?.globalBackground || slideData?.data?.globalBackground;
@@ -54,7 +55,7 @@ const DisplayClientPage = () => {
         }
       }
       if (e.data?.type === 'SET_GLOBAL_BG') {
-        const bg = e.data.payload;
+        const bg = e.data.payload || e.data.background;
         setGlobalBg(bg);
         if (bg) localStorage.setItem('beth_global_bg', JSON.stringify(bg));
         else localStorage.removeItem('beth_global_bg');

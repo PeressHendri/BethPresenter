@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Play, Pause, Volume2, VolumeX, Loader2, EyeOff, Monitor } from 'lucide-react';
+import clsx from 'clsx';
 
 const SlideRenderer = React.memo(({ 
   slide,           
@@ -8,10 +9,11 @@ const SlideRenderer = React.memo(({
   showLabel = true,
   showLiveIndicator = false,
   showControls = false, 
-  isPlaying = true, // Added for external control
-  isMuted: isMutedProp = false, // Added for external control
-  isLoop: isLoopProp = true, // Added for external control
+  isPlaying = true,
+  isMuted: isMutedProp = false,
+  isLoop: isLoopProp = true,
   className = "",
+  showCheckered = false,
   onSlideEnd
 }) => {
   const [isPlayingLocal, setIsPlayingLocal] = useState(isPlaying);
@@ -34,44 +36,62 @@ const SlideRenderer = React.memo(({
     setIsMutedLocal(isMutedProp);
   }, [isMutedProp]);
 
-  // DEBUGGING
-  useEffect(() => {
-    if (slide) {
-      console.log("SlideRenderer Render:", {
-        type: slide.type || slide.contentType,
-        url: slide.url || slide.mediaUrl || slide.path,
-        globalBg: !!globalBg
-      });
-    }
-  }, [slide, globalBg]);
-
   // Robust Normalization
-  // Unify and Robustly Extract Slide Properties
   const d = slide?.data || slide || {};
   const s = d.slides && d.slides[0] ? d.slides[0] : d;
   
-  // Check for various possible type fields
   const rawType = d.contentType || d.type || s.type || slide?.contentType || slide?.type || d.mediaType || s.mediaType || 'song';
   const slideType = String(rawType).toLowerCase();
 
-  const slideContent = d.content || s.content;
-  const slideLabel = d.label || slide?.label || d.title;
+  const slideContent = d.content || s.content || d.text || s.text || "";
+  const slideLabel = d.label || slide?.label || d.title || "";
 
   const slideUrl = d.url || d.mediaUrl || s.url || s.mediaUrl || s.path || d.path;
-                   
   const slideEmbedUrl = d.embedUrl || s.embedUrl;
 
-  // Extensions
   const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'm4v'];
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
   
-  const isVideo = slideType === 'video' || (slideUrl && videoExts.some(ext => slideUrl.toLowerCase().endsWith(`.${ext}`))) || (slideUrl && slideUrl.match(/\.(mp4|webm|ogg|mov|m4v)$/i));
-  const isImage = slideType === 'image' || (slideUrl && imageExts.some(ext => slideUrl.toLowerCase().endsWith(`.${ext}`))) || (slideUrl && slideUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i));
+  const isVideo = slideType === 'video' || (slideUrl && videoExts.some(ext => String(slideUrl).toLowerCase().endsWith(`.${ext}`))) || (slideUrl && String(slideUrl).match(/\.(mp4|webm|ogg|mov|m4v)$/i));
+  const isImage = slideType === 'image' || (slideUrl && imageExts.some(ext => String(slideUrl).toLowerCase().endsWith(`.${ext}`))) || (slideUrl && String(slideUrl).match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i));
   const isPPT = slideType === 'ppt' || !!slideEmbedUrl;
   const isCountdown = slideType === 'countdown';
-  const isBible = slideType === 'bible';
+  const isBible = slideType === 'bible' || slideType === 'scripture';
 
-  const textFormat = useMemo(() => format || slide?.format || slide?.data?.format || {}, [format, slide]);
+  // Merge Styles (Prop format > Slide Format > Default)
+  const styles = useMemo(() => {
+    const base = format || d.format || s.format || slide?.format || {};
+    const textColor = base.textColor || base.color || '#FFFFFF';
+    const bgOpacity = base.bgOpacity !== undefined ? base.bgOpacity : 0;
+    const txtBgColor = base.textBackgroundColor || base.txtBgColor || '#000000';
+    
+    // Hex Opacity Conversion
+    const alpha = Math.round(bgOpacity * 2.55).toString(16).padStart(2, '0');
+    const backgroundColor = bgOpacity > 0 ? (txtBgColor.startsWith('#') ? `${txtBgColor}${alpha}` : `rgba(0,0,0,${bgOpacity/100})`) : 'transparent';
+
+    return {
+      fontFamily: base.fontFamily || 'Outfit',
+      fontSize: base.fontSize || '5.5cqw',
+      fontWeight: base.isBold ? '900' : (base.fontWeight || '700'),
+      fontStyle: base.isItalic ? 'italic' : 'normal',
+      textAlign: base.textAlign || base.alignment || 'center',
+      vAlignment: base.vAlignment || 'Center',
+      textColor,
+      lineHeight: base.lineHeight || 1.15,
+      letterSpacing: base.spacing !== undefined ? `${base.spacing}px` : (base.letterSpacing || 'normal'),
+      textShadow: base.textShadow || (
+        base.shadowType === 'None' ? 'none' :
+        base.shadowType === 'Soft' ? '0 4px 16px rgba(0,0,0,0.85)' :
+        base.shadowType === 'Strong' ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)' :
+        base.shadowType === 'Large' ? '0 10px 40px rgba(0,0,0,0.85)' :
+        base.shadowType === 'Glow' ? `0 0 20px ${textColor}` :
+        '0 4px 16px rgba(0,0,0,0.85)'
+      ),
+      textTransform: base.isUppercase || base.textTransform === 'uppercase' ? 'uppercase' : 'none',
+      textBackgroundColor: backgroundColor,
+      bgOpacity,
+    };
+  }, [format, d.format, s.format, slide?.format]);
 
   // Reset states when URL changes
   useEffect(() => {
@@ -99,23 +119,30 @@ const SlideRenderer = React.memo(({
   const renderBackground = () => {
     if (slide?.isBlank) return <div className="absolute inset-0 bg-black z-0" />;
 
-    // Priority: Slide-Specific Background > Global Background
-    const sBg = slide?.background;
-    const hasSlideBg = sBg && (sBg.mediaUrl || sBg.color || (sBg.type && sBg.type !== 'Solid Color'));
-    const bg = hasSlideBg ? sBg : (globalBg || slide?.globalBackground);
+    const sBg = s.background || d.background || slide?.background;
+    const hasSlideBg = sBg && (sBg.mediaUrl || sBg.url || sBg.color || (sBg.type && sBg.type !== 'Solid Color'));
+    const bg = hasSlideBg ? sBg : (globalBg || slide?.globalBackground || d.globalBackground);
     
-    if (!bg) return <div className="absolute inset-0 bg-[#0a0a0a] z-0" />;
+    if (!bg) return <div className={clsx("absolute inset-0 z-0", showCheckered ? "bg-checkered" : "bg-[#0a0a0a]")} />;
 
     const bgUrl = bg.url || bg.mediaUrl;
-    const bgType = bg.type || (bgUrl && videoExts.some(ext => bgUrl.toLowerCase().endsWith(`.${ext}`)) ? 'video' : 'image');
+    const bgType = bg.type || (bgUrl && videoExts.some(ext => String(bgUrl).toLowerCase().endsWith(`.${ext}`)) ? 'video' : 'image');
 
-    if (bgType === 'video' || bg.type === 'Video (MP4)' || bg.mediaType === 'video') {
+    if (bgType === 'video' || bg.type === 'Video (MP4)' || bg.mediaType === 'video' || String(bgUrl).match(/\.(mp4|webm|mov|m4v)$/i)) {
       return (
-        <video key={bgUrl} src={bgUrl} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0" />
+        <div className="absolute inset-0 z-0 bg-black">
+          <video key={bgUrl} src={bgUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/20" />
+        </div>
       );
     }
-    if (bgType === 'image' || bg.type === 'Image' || bg.mediaType === 'image') {
-      return <img key={bgUrl} src={bgUrl} className="absolute inset-0 w-full h-full object-cover z-0" alt="" />;
+    if (bgType === 'image' || bg.type === 'Image' || bg.mediaType === 'image' || String(bgUrl).match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+      return (
+        <div className="absolute inset-0 z-0 bg-black">
+          <img key={bgUrl} src={bgUrl} className="w-full h-full object-cover" alt="" />
+          <div className="absolute inset-0 bg-black/20" />
+        </div>
+      );
     }
     return <div className="absolute inset-0 z-0" style={{ backgroundColor: bg.color || '#0a0a0a' }} />;
   };
@@ -139,7 +166,7 @@ const SlideRenderer = React.memo(({
         <div className="absolute inset-0 bg-black flex items-center justify-center z-10 group/video">
           {isLoading && !hasError && (
              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/40 backdrop-blur-sm">
-                <Loader2 className="w-10 h-10 text-white animate-spin opacity-50" />
+                <Loader2 className="w-10 h-10 text-[#800000] animate-spin" />
                 <span className="text-white/30 text-[10px] font-black uppercase mt-4 tracking-widest">Memuat Video...</span>
              </div>
           )}
@@ -165,10 +192,10 @@ const SlideRenderer = React.memo(({
             />
           )}
           {showControls && !hasError && (
-            <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 transition-opacity z-30 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-               <button onClick={togglePlay} className="text-white hover:text-red-400 p-1">{isPlayingLocal ? <Pause size={18} /> : <Play size={18} />}</button>
+            <div className={clsx("absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 transition-opacity z-30", isHovered ? 'opacity-100' : 'opacity-0')}>
+               <button onClick={togglePlay} className="text-white hover:text-[#800000] p-1">{isPlayingLocal ? <Pause size={18} /> : <Play size={18} />}</button>
                <div className="w-px h-4 bg-white/10" />
-               <button onClick={toggleMute} className="text-white hover:text-red-400 p-1">{isMutedLocal ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+               <button onClick={toggleMute} className="text-white hover:text-[#800000] p-1">{isMutedLocal ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
             </div>
           )}
         </div>
@@ -183,7 +210,7 @@ const SlideRenderer = React.memo(({
             key={slideUrl}
             src={slideUrl} 
             className="w-full h-full object-contain" 
-            alt={slideLabel || ""} 
+            alt={slideLabel} 
             onLoad={() => setIsLoading(false)}
             onError={() => { setHasError(true); setIsLoading(false); }}
           />
@@ -191,7 +218,6 @@ const SlideRenderer = React.memo(({
       );
     }
 
-    // Handle Countdown
     if (isCountdown) {
       const mins = Math.floor((d.remainingSeconds || 0) / 60);
       const secs = (d.remainingSeconds || 0) % 60;
@@ -200,7 +226,7 @@ const SlideRenderer = React.memo(({
       return (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-[8cqw] pointer-events-none z-20">
           {d.title && <div className="text-[3cqw] text-white/50 font-[900] tracking-[0.2em] uppercase mb-[2cqw]">{d.title}</div>}
-          <div className="text-[20cqw] font-[950] text-white leading-none">{timeStr}</div>
+          <div className="text-[20cqw] font-[950] text-white leading-none drop-shadow-2xl">{timeStr}</div>
           {d.message && <div className="text-[2.5cqw] text-white/40 font-[700] tracking-[0.2em] uppercase mt-[2cqw]">{d.message}</div>}
         </div>
       );
@@ -209,61 +235,41 @@ const SlideRenderer = React.memo(({
     // Default: Text Overlay (Songs / Bible)
     if (!slideContent && !isBible) return null;
 
-    // Handle Bible Structure
-    if (isBible) {
-      const ref = d.reference || slideLabel || '';
-      const verse = slideContent || '';
-      const isRefBottom = d.referencePos === 'bottom';
-
-      return (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-[8cqw] pointer-events-none z-20 gap-[2vh] text-center w-full">
-          {!isRefBottom && ref && <div className="font-['Outfit'] text-[clamp(14px,2vh,26px)] text-white/45 font-bold tracking-[0.2em] uppercase w-full">{ref}</div>}
-          <div className="font-['Outfit'] text-white font-bold leading-[1.5] whitespace-pre-wrap w-full text-[clamp(24px,4cqw,80px)]">{verse}</div>
-          {isRefBottom && ref && <div className="font-['Outfit'] text-[clamp(14px,2vh,26px)] text-white/45 font-bold tracking-[0.2em] uppercase w-full">{ref}</div>}
-        </div>
-      );
-    }
-
     const textStyles = {
-      fontFamily: textFormat.fontFamily ? `'${textFormat.fontFamily}', Outfit, sans-serif` : "'Outfit', sans-serif",
-      fontSize: textFormat.fontSize ? (typeof textFormat.fontSize === 'number' ? `${textFormat.fontSize}px` : textFormat.fontSize) : '5.5cqw',
-      color: textFormat.textColor || '#FFFFFF',
-      fontWeight: textFormat.isBold === false ? '700' : '900',
-      fontStyle: textFormat.isItalic ? 'italic' : 'normal',
-      textAlign: textFormat.textAlign || textFormat.alignment || 'center',
-      lineHeight: textFormat.lineHeight || 1.15,
-      letterSpacing: textFormat.spacing ? `${textFormat.spacing}px` : 'normal',
-      textShadow: textFormat.shadowType === 'Strong' 
-        ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)'
-        : textFormat.shadowType === 'Large'
-        ? '0 10px 40px rgba(0,0,0,0.85)'
-        : textFormat.shadowType === 'Glow'
-        ? `0 0 20px ${textFormat.textColor || '#FFFFFF'}`
-        : textFormat.shadowType === 'None'
-        ? 'none'
-        : '0 4px 16px rgba(0,0,0,0.85)',
-      backgroundColor: textFormat.bgOpacity > 0 
-        ? ((textFormat.textBackgroundColor && !textFormat.textBackgroundColor.startsWith('#')) ? textFormat.textBackgroundColor : `rgba(${textFormat.textBackgroundColor ? parseInt(textFormat.textBackgroundColor.slice(1,3),16)+','+parseInt(textFormat.textBackgroundColor.slice(3,5),16)+','+parseInt(textFormat.textBackgroundColor.slice(5,7),16) : '0,0,0'},${textFormat.bgOpacity/100})`)
-        : 'transparent',
-      padding: '2cqw',
-      borderRadius: '1cqw',
+      fontFamily: `'${styles.fontFamily}', Outfit, sans-serif`,
+      fontSize: typeof styles.fontSize === 'number' ? `${styles.fontSize}px` : styles.fontSize,
+      color: styles.textColor,
+      fontWeight: styles.fontWeight,
+      fontStyle: styles.fontStyle,
+      textAlign: styles.textAlign,
+      lineHeight: styles.lineHeight,
+      letterSpacing: styles.letterSpacing,
+      textShadow: styles.textShadow,
+      textTransform: styles.textTransform,
+      backgroundColor: styles.bgOpacity > 0 ? (styles.textBackgroundColor || 'rgba(0,0,0,0.5)') : 'transparent',
+      padding: styles.bgOpacity > 0 ? '0.2em 0.5em' : '0',
+      borderRadius: styles.bgOpacity > 0 ? '0.1em' : '0',
+      boxDecorationBreak: 'clone',
+      WebkitBoxDecorationBreak: 'clone'
     };
 
-    const vAlign = textFormat.vAlignment || 'Center';
-    const verticalAlignClass = vAlign === 'Top' ? 'items-start' : vAlign === 'Bottom' ? 'items-end' : 'items-center';
-
-    // Add textTransform
-    textStyles.textTransform = textFormat.isUppercase ? 'uppercase' : 'none';
+    const verticalAlignClass = styles.vAlignment === 'Top' ? 'items-start' : styles.vAlignment === 'Bottom' ? 'items-end' : 'items-center';
 
     return (
-      <div className={`absolute inset-0 flex flex-col ${verticalAlignClass} justify-center p-[8cqw] pointer-events-none z-20`}>
+      <div className={clsx("absolute inset-0 flex flex-col justify-center p-[8cqw] pointer-events-none z-20", verticalAlignClass)}>
         {slideLabel && showLabel && (
           <div className="absolute top-[4cqw] left-[4cqw] text-white/40 text-[1.2cqw] font-black uppercase tracking-[0.3em] bg-black/20 px-[0.8cqw] py-[0.3cqw] rounded backdrop-blur-sm">
             {slideLabel}
           </div>
         )}
         <div style={textStyles} className="whitespace-pre-wrap break-words w-full">
-          {slideContent}
+          {isBible ? (
+            <div className="flex flex-col gap-[2cqw]">
+               {d.referencePos !== 'bottom' && <div className="text-[0.6em] opacity-50 font-bold tracking-widest uppercase mb-[1cqw]">{d.reference}</div>}
+               <div>{slideContent}</div>
+               {d.referencePos === 'bottom' && <div className="text-[0.6em] opacity-50 font-bold tracking-widest uppercase mt-[1cqw]">{d.reference}</div>}
+            </div>
+          ) : slideContent}
         </div>
       </div>
     );
@@ -271,7 +277,7 @@ const SlideRenderer = React.memo(({
 
   return (
     <div 
-      className={`relative w-full h-full overflow-hidden bg-black select-none ${className}`}
+      className={clsx("relative w-full h-full overflow-hidden bg-black select-none", className)}
       style={{ containerType: 'inline-size' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

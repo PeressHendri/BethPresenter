@@ -346,25 +346,36 @@ const FlowPanel = React.memo(({ t, liveState, goToNextSlide, goToPrevSlide, togg
                 {(() => {
                   let nextSlide = null;
                   let nextFormat = liveState.format;
-                  if (selectedItemIndex !== null) {
-                    const currentItem = schedule[selectedItemIndex];
-                    if (currentItem.type === 'media' || currentItem.type === 'image' || currentItem.type === 'video' || currentItem.type === 'ppt' || currentItem.type === 'Media') {
-                       if (selectedItemIndex < schedule.length - 1) {
-                         const nextItem = schedule[selectedItemIndex + 1];
-                         nextSlide = nextItem.type === 'media' ? nextItem : nextItem.slides[0];
-                         nextFormat = nextItem.format || liveState.format;
-                       }
+                  
+                  // Find current item index in schedule based on liveState.songId
+                  const currentIdx = schedule.findIndex(item => (item.instanceId || item.id) === liveState.songId);
+                  
+                  if (currentIdx !== -1) {
+                    const currentItem = schedule[currentIdx];
+                    const isMedia = currentItem.type === 'media' || currentItem.type === 'image' || currentItem.type === 'video' || currentItem.type === 'ppt' || currentItem.type === 'Media';
+                    
+                    if (isMedia) {
+                      // If current is media, next slide is the first slide/media of the NEXT item in schedule
+                      if (currentIdx < schedule.length - 1) {
+                        const nextItem = schedule[currentIdx + 1];
+                        nextSlide = (nextItem.type === 'media' || nextItem.type === 'image' || nextItem.type === 'video' || nextItem.type === 'ppt' || nextItem.type === 'Media') 
+                                    ? nextItem : (nextItem.slides && nextItem.slides[0]);
+                        nextFormat = nextItem.format || liveState.format;
+                      }
                     } else {
-                        if (liveState.slideIndex < currentItem.slides.length - 1) {
-                          nextSlide = currentItem.slides[liveState.slideIndex + 1];
-                          nextFormat = currentItem.format || liveState.format;
-                        } else if (selectedItemIndex < schedule.length - 1) {
-                          const nextItem = schedule[selectedItemIndex + 1];
-                          nextSlide = nextItem.type === 'media' ? nextItem : nextItem.slides[0];
-                          nextFormat = nextItem.format || liveState.format;
-                        }
+                      // If current is a multi-slide item (e.g. song, bible)
+                      if (liveState.slideIndex < (currentItem.slides?.length || 0) - 1) {
+                        nextSlide = currentItem.slides[liveState.slideIndex + 1];
+                        nextFormat = currentItem.format || liveState.format;
+                      } else if (currentIdx < schedule.length - 1) {
+                        const nextItem = schedule[currentIdx + 1];
+                        nextSlide = (nextItem.type === 'media' || nextItem.type === 'image' || nextItem.type === 'video' || nextItem.type === 'ppt' || nextItem.type === 'Media') 
+                                    ? nextItem : (nextItem.slides && nextItem.slides[0]);
+                        nextFormat = nextItem.format || liveState.format;
+                      }
                     }
                   }
+                  
                   if (nextSlide) {
                     return <SlideRenderer slide={nextSlide} format={nextFormat} globalBg={liveState.globalBackground} showLabel={false} showLiveIndicator={false} className="opacity-60 scale-[0.98]" />;
                   }
