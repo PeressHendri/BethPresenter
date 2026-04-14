@@ -50,8 +50,9 @@ const SlideRenderer = React.memo(({
   const d = slide?.data || slide || {};
   const s = d.slides && d.slides[0] ? d.slides[0] : d;
   
-  const rawType = d.contentType || d.type || s.type || slide?.contentType || slide?.type || 'song';
-  const slideType = rawType.toLowerCase();
+  // Check for various possible type fields
+  const rawType = d.contentType || d.type || s.type || slide?.contentType || slide?.type || d.mediaType || s.mediaType || 'song';
+  const slideType = String(rawType).toLowerCase();
 
   const slideContent = d.content || s.content;
   const slideLabel = d.label || slide?.label || d.title;
@@ -60,8 +61,12 @@ const SlideRenderer = React.memo(({
                    
   const slideEmbedUrl = d.embedUrl || s.embedUrl;
 
-  const isVideo = slideType === 'video' || (slideUrl && slideUrl.match(/\.(mp4|webm|ogg|mov)$/i));
-  const isImage = slideType === 'image' || (slideUrl && slideUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i));
+  // Extensions
+  const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'm4v'];
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+  
+  const isVideo = slideType === 'video' || (slideUrl && videoExts.some(ext => slideUrl.toLowerCase().endsWith(`.${ext}`))) || (slideUrl && slideUrl.match(/\.(mp4|webm|ogg|mov|m4v)$/i));
+  const isImage = slideType === 'image' || (slideUrl && imageExts.some(ext => slideUrl.toLowerCase().endsWith(`.${ext}`))) || (slideUrl && slideUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i));
   const isPPT = slideType === 'ppt' || !!slideEmbedUrl;
   const isCountdown = slideType === 'countdown';
   const isBible = slideType === 'bible';
@@ -77,16 +82,18 @@ const SlideRenderer = React.memo(({
   const togglePlay = (e) => {
     e.stopPropagation();
     if (videoRef.current) {
-      if (isPlaying) videoRef.current.pause();
-      else videoRef.current.play();
-      setIsPlaying(!isPlaying);
+      const nextPlaying = !isPlayingLocal;
+      if (nextPlaying) videoRef.current.play().catch(() => {});
+      else videoRef.current.pause();
+      setIsPlayingLocal(nextPlaying);
     }
   };
 
   const toggleMute = (e) => {
     e.stopPropagation();
-    setIsMuted(!isMuted);
-    if (videoRef.current) videoRef.current.muted = !isMuted;
+    const nextMuted = !isMutedLocal;
+    setIsMutedLocal(nextMuted);
+    if (videoRef.current) videoRef.current.muted = nextMuted;
   };
 
   const renderBackground = () => {
@@ -100,14 +107,14 @@ const SlideRenderer = React.memo(({
     if (!bg) return <div className="absolute inset-0 bg-[#0a0a0a] z-0" />;
 
     const bgUrl = bg.url || bg.mediaUrl;
-    const bgType = bg.type || (bgUrl?.match(/\.(mp4|webm|ogg|mov)$/i) ? 'video' : 'image');
+    const bgType = bg.type || (bgUrl && videoExts.some(ext => bgUrl.toLowerCase().endsWith(`.${ext}`)) ? 'video' : 'image');
 
-    if (bgType === 'video' || bg.type === 'Video (MP4)') {
+    if (bgType === 'video' || bg.type === 'Video (MP4)' || bg.mediaType === 'video') {
       return (
         <video key={bgUrl} src={bgUrl} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0" />
       );
     }
-    if (bgType === 'image' || bg.type === 'Image') {
+    if (bgType === 'image' || bg.type === 'Image' || bg.mediaType === 'image') {
       return <img key={bgUrl} src={bgUrl} className="absolute inset-0 w-full h-full object-cover z-0" alt="" />;
     }
     return <div className="absolute inset-0 z-0" style={{ backgroundColor: bg.color || '#0a0a0a' }} />;
@@ -159,9 +166,9 @@ const SlideRenderer = React.memo(({
           )}
           {showControls && !hasError && (
             <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 transition-opacity z-30 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-               <button onClick={togglePlay} className="text-white hover:text-red-400 p-1">{isPlaying ? <Pause size={18} /> : <Play size={18} />}</button>
+               <button onClick={togglePlay} className="text-white hover:text-red-400 p-1">{isPlayingLocal ? <Pause size={18} /> : <Play size={18} />}</button>
                <div className="w-px h-4 bg-white/10" />
-               <button onClick={toggleMute} className="text-white hover:text-red-400 p-1">{isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+               <button onClick={toggleMute} className="text-white hover:text-red-400 p-1">{isMutedLocal ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
             </div>
           )}
         </div>

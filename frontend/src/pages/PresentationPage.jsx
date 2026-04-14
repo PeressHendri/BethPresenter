@@ -64,7 +64,7 @@ const ScheduleItem = React.memo(({ item, idx, selectedItemIndex, onClick, onRemo
        <div className={`w-12 h-12 rounded-lg flex items-center justify-center border shrink-0 overflow-hidden relative z-10 ${isSelected ? 'bg-white border-[#800000] text-[#800000] shadow-lg shadow-[#80000010]' : 'bg-[#F1F1F3] border-transparent text-[#AEAEB2]'}`}>
           {item.type === 'song' ? <Music size={18} /> : item.type === 'blank' ? <Layout size={18} /> : isMedia ? (
             <div className="w-full h-full relative">
-               {item.type === 'video' || mediaUrl?.match(/\.(mp4|webm|ogg|mov)$/i) ? (
+               {item.type === 'video' || mediaUrl?.match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? (
                  <>
                    <video src={mediaUrl} className="w-full h-full object-cover grayscale-[0.5]" muted />
                    <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Play size={12} fill="white" className="text-white" /></div>

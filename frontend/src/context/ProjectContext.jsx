@@ -199,7 +199,12 @@ export const ProjectProvider = ({ children }) => {
       let newState;
       const currentGlobalBg = prev.globalBackground || globalBackground;
       
-      if (item.type === 'media') {
+      const isMedia = item.type === 'media' || item.type === 'image' || item.type === 'video' || item.type === 'ppt' || item.type === 'Media';
+
+      if (isMedia) {
+        const mediaUrl = item.url || item.mediaUrl || (item.slides && item.slides[0]?.url) || (item.slides && item.slides[0]?.mediaUrl);
+        const isVideo = (item.type === 'video' || mediaUrl?.match(/\.(mp4|webm|ogg|mov|m4v)$/i));
+        
         newState = {
           songId: item.instanceId || item.id,
           slideIndex: 0,
@@ -215,8 +220,8 @@ export const ProjectProvider = ({ children }) => {
             bgOpacity: 0,
             shadowType: 'Soft'
           },
-          mediaUrl: item.url || item.mediaUrl || (item.slides && item.slides[0]?.url) || (item.slides && item.slides[0]?.mediaUrl),
-          mediaType: (item.url || item.mediaUrl || (item.slides && item.slides[0]?.url) || (item.slides && item.slides[0]?.mediaUrl))?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image',
+          mediaUrl: mediaUrl,
+          mediaType: isVideo ? 'video' : 'image',
           globalBackground: currentGlobalBg,
           isBlank: false
         };
@@ -241,8 +246,8 @@ export const ProjectProvider = ({ children }) => {
             shadowType: 'Soft'
           },
           mediaUrl: bg.mediaUrl || bg.url || (item.format?.bgMediaUrl) || null,
-          mediaType: bg.mediaType || (item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image') : null),
-          bgType: bg.type || (item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image') : 'color'),
+          mediaType: bg.mediaType || (item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? 'video' : 'image') : null),
+          bgType: bg.type || (item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? 'video' : 'image') : 'color'),
           globalBackground: currentGlobalBg,
           isBlank: false
         };
@@ -280,7 +285,7 @@ export const ProjectProvider = ({ children }) => {
   const setGlobalBackground = (item) => {
     const bg = item ? { 
       url: item.mediaUrl || item.url, 
-      type: (item.mediaUrl || item.url || '').match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image' 
+      type: (item.mediaUrl || item.url || '').match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? 'video' : 'image' 
     } : null;
     
     setGlobalBackgroundState(bg);
@@ -333,7 +338,7 @@ export const ProjectProvider = ({ children }) => {
       label: data.label || '',
       format: data.format || liveState.format,
       mediaUrl: data.mediaUrl || null,
-      mediaType: data.mediaType || null,
+      mediaType: data.mediaType || (data.mediaUrl?.match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? 'video' : 'image'),
       globalBackground: liveState.globalBackground || globalBackground,
       isBlank: false
     };
@@ -380,7 +385,7 @@ export const ProjectProvider = ({ children }) => {
 
   // ── sendMediaToLive ────────────────────────────────────────────────────────
   const sendMediaToLive = (mediaData) => {
-    const mediaType = mediaData.type || (mediaData.url?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image');
+    const mediaType = mediaData.type || (mediaData.url?.match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? 'video' : 'image');
     
     const newState = {
       songId: 'media', 
