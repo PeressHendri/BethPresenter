@@ -70,7 +70,23 @@ export const ProjectProvider = ({ children }) => {
     slideIndex: null,
     content: '',
     label: '',
-    isBlank: false
+    isBlank: false,
+    format: {
+      fontFamily: 'Outfit',
+      fontSize: '72px',
+      textColor: '#FFFFFF',
+      textAlign: 'center',
+      vAlignment: 'Center',
+      lineHeight: 1.15,
+      bgOpacity: 0,
+      shadowType: 'Soft'
+    },
+    globalBackground: null
+  });
+
+  const [globalBackground, setGlobalBackgroundState] = useState(() => {
+    const saved = localStorage.getItem('beth_global_bg');
+    return saved ? JSON.parse(saved) : null;
   });
 
   // Persist Projects
@@ -93,10 +109,8 @@ export const ProjectProvider = ({ children }) => {
   useEffect(() => {
     socketRef.current = io(SOCKET_URL);
     
-    // Background data loading after initial paint
-    setTimeout(() => {
-      fetchSongs();
-    }, 100);
+    // Initial data load
+    fetchSongs();
 
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
@@ -104,6 +118,9 @@ export const ProjectProvider = ({ children }) => {
   }, []);
 
   const fetchSongs = async () => {
+    // Failsafe: force loading to end after 5 seconds regardless of network
+    const failsafe = setTimeout(() => setLoading(false), 5000);
+
     try {
       const response = await fetch(`${API_URL}/songs`);
       if (response.ok) {
@@ -113,6 +130,7 @@ export const ProjectProvider = ({ children }) => {
     } catch (error) {
       console.error('Fetch error:', error);
     } finally {
+      clearTimeout(failsafe);
       setLoading(false);
     }
   };
@@ -334,6 +352,22 @@ export const ProjectProvider = ({ children }) => {
 
               // ─── Message handler ─────────────────────────────────────────
               window.addEventListener('message', (event) => {
+                if (event.data.type === 'SET_GLOBAL_BG') {
+                  const bg = event.data.payload;
+                  const mediaContainer = document.getElementById('media-container');
+                  if (!bg) {
+                    mediaContainer.innerHTML = '';
+                    return;
+                  }
+                  const type = bg.type || (bg.url?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image');
+                  if (type === 'video') {
+                    mediaContainer.innerHTML = '<video src="' + bg.url + '" autoplay loop muted playsinline style="width:100%;height:100%;object-fit:cover;"></video>';
+                  } else {
+                    mediaContainer.innerHTML = '<img src="' + bg.url + '" style="width:100%;height:100%;object-fit:cover;" />';
+                  }
+                  return;
+                }
+
                 if (event.data.type !== 'UPDATE_SLIDE') return;
 
                 const raw = event.data.data;
@@ -463,9 +497,9 @@ export const ProjectProvider = ({ children }) => {
                 } else {
                   mediaContainer.innerHTML = '';
                   if (format && format.bgOpacity > 0) {
-                    document.body.style.background = 'rgba(128,0,0,' + (format.bgOpacity/100) + ')';
+                    document.body.style.background = 'transparent';
                   } else {
-                    document.body.style.background = 'black';
+                    document.body.style.background = 'transparent';
                   }
                 }
 
@@ -522,54 +556,78 @@ export const ProjectProvider = ({ children }) => {
   const setLiveSlide = (item, slideIndex) => {
     if (!item) return;
 
-    let newState;
-    if (item.type === 'media') {
-      newState = {
-        songId: item.instanceId || item.id,
-        slideIndex: 0,
-        content: '',
-        label: item.title,
-        format: item.format,
-        mediaUrl: item.url,
-        mediaType: item.url?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image',
-        isBlank: false
-      };
-    } else {
-      if (!item.slides || !item.slides[slideIndex]) return;
-      const slide = item.slides[slideIndex];
-      newState = {
-        songId: item.instanceId || item.id,
-        slideIndex: slideIndex,
-        content: slide.content,
-        label: (item.type === 'bible' || item.type === 'countdown') ? item.title : (slide.label || null),
-        format: item.format,
-        mediaUrl: item.format?.bgMediaUrl || null,
-        mediaType: item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image') : null,
-        isBlank: false
-      };
-    }
-
-    setLiveState(newState);
-
-    if (!isRehearsal) {
-      // Get or open the output window — capture ref directly (not from async state)
-      let targetWin = (outputWindow && !outputWindow.closed) ? outputWindow : null;
-      if (!targetWin) {
-        targetWin = openOutput();
+    setLiveState(prev => {
+      let newState;
+      const currentGlobalBg = prev.globalBackground || globalBackground;
+      
+      if (item.type === 'media') {
+        newState = {
+          songId: item.instanceId || item.id,
+          slideIndex: 0,
+          content: '',
+          label: item.title,
+          format: item.format || prev.format || {
+            fontFamily: 'Outfit',
+            fontSize: '72px',
+            textColor: '#FFFFFF',
+            textAlign: 'center',
+            vAlignment: 'Center',
+            lineHeight: 1.15,
+            bgOpacity: 0,
+            shadowType: 'Soft'
+          },
+          mediaUrl: item.url,
+          mediaType: item.url?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image',
+          globalBackground: currentGlobalBg,
+          isBlank: false
+        };
+      } else {
+        if (!item.slides || !item.slides[slideIndex]) return prev;
+        const slide = item.slides[slideIndex];
+        const bg = slide.background || {};
+        
+        newState = {
+          songId: item.instanceId || item.id,
+          slideIndex: slideIndex,
+          content: slide.content,
+          label: (item.type === 'bible' || item.type === 'countdown') ? item.title : (slide.label || null),
+          format: item.format || prev.format || {
+            fontFamily: 'Outfit',
+            fontSize: '72px',
+            textColor: '#FFFFFF',
+            textAlign: 'center',
+            vAlignment: 'Center',
+            lineHeight: 1.15,
+            bgOpacity: 0,
+            shadowType: 'Soft'
+          },
+          mediaUrl: bg.mediaUrl || bg.url || (item.format?.bgMediaUrl) || null,
+          mediaType: bg.mediaType || (item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image') : null),
+          bgType: bg.type || (item.format?.bgMediaUrl ? (item.format.bgMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image') : 'color'),
+          globalBackground: currentGlobalBg,
+          isBlank: false
+        };
       }
 
-      // Wait for the output window script to be ready, then send the slide data
-      setTimeout(() => {
-        const win = targetWin || outputWindow;
-        if (win && !win.closed) {
-          win.postMessage({ type: 'UPDATE_SLIDE', data: newState }, '*');
-        }
-      }, 300);
+      const envelope = { 
+        ...newState,
+        contentType: item.type || 'song', 
+        data: newState, 
+        payload: newState,
+        type: 'SET_LIVE_SLIDE'
+      };
+
+      // Broadcast to local and remote
+      if (outputWindow && !outputWindow.closed) {
+        outputWindow.postMessage({ type: 'SET_LIVE_SLIDE', payload: envelope }, '*');
+      }
 
       if (socketRef.current && remotePin) {
-        socketRef.current.emit('broadcast-slide', { pin: remotePin, slide: newState });
+        socketRef.current.emit('broadcast-slide', { pin: remotePin, slide: envelope });
       }
-    }
+
+      return newState;
+    });
   };
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -578,6 +636,40 @@ export const ProjectProvider = ({ children }) => {
   const getOrOpenOutput = () => {
     if (outputWindow && !outputWindow.closed) return outputWindow;
     return openOutput();
+  };
+
+  const setGlobalBackground = (item) => {
+    const bg = item ? { 
+      url: item.mediaUrl || item.url, 
+      type: (item.mediaUrl || item.url || '').match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image' 
+    } : null;
+    
+    setGlobalBackgroundState(bg);
+    
+    setLiveState(prev => {
+      const newState = { ...prev, globalBackground: bg };
+      
+      const bgEnvelope = { type: 'SET_GLOBAL_BG', payload: bg };
+
+      // 1. Broadcast to LOCAL window
+      if (outputWindow && !outputWindow.closed) {
+        outputWindow.postMessage(bgEnvelope, '*');
+      }
+
+      // 2. Broadcast to REMOTE clients
+      if (socketRef.current && remotePin) {
+        socketRef.current.emit('broadcast-global-bg', { pin: remotePin, bg: bg });
+      }
+
+      return newState;
+    });
+
+    if (bg) {
+      localStorage.setItem('beth_global_bg', JSON.stringify(bg));
+      notify(language === 'id' ? 'Background global diperbarui' : 'Global background updated', 'success');
+    } else {
+      localStorage.removeItem('beth_global_bg');
+    }
   };
 
   // Helper: broadcast via postMessage + socket
@@ -595,75 +687,117 @@ export const ProjectProvider = ({ children }) => {
 
   // ── sendManualToLive (Countdown / generic text) ────────────────────────────
   const sendManualToLive = (data) => {
+    const newState = { 
+      songId: data.songId || 'manual', 
+      slideIndex: 0,
+      content: data.content || '',
+      label: data.label || '',
+      format: data.format || liveState.format,
+      mediaUrl: data.mediaUrl || null,
+      mediaType: data.mediaType || null,
+      globalBackground: liveState.globalBackground || globalBackground,
+      isBlank: false
+    };
+    
     const envelope = {
       contentType: 'song',
       isBlank: false,
-      data: {
-        content: data.content || '',
-        label: data.label || '',
-        format: data.format || null,
-        mediaUrl: data.mediaUrl || null,
-        mediaType: data.mediaType || null,
-      }
+      data: newState
     };
-    setLiveState({ ...envelope.data, songId: data.songId || 'manual', slideIndex: 0 });
+    
+    setLiveState(newState);
     broadcast(envelope);
   };
 
   // ── sendBibleToLive ────────────────────────────────────────────────────────
   const sendBibleToLive = (bibleData, style, background) => {
+    const activeBg = background || liveState.globalBackground || globalBackground;
+    
+    const newState = {
+      songId: 'bible',
+      slideIndex: 0,
+      content: bibleData.content,
+      label: bibleData.reference || 'Alkitab',
+      isBlank: false,
+      globalBackground: activeBg,
+      format: style || liveState.format
+    };
+
     const envelope = {
       contentType: 'bible',
       isBlank: false,
       data: {
-        content: bibleData.content || '',
+        ...newState,
         reference: bibleData.reference || '',
         referencePos: bibleData.referencePos || 'top',
         versions: bibleData.versions || null,
-        style: style || null,
-        background: background || null,
+        background: activeBg
       }
     };
-    setLiveState({ songId: 'bible', slideIndex: 0, content: bibleData.content, isBlank: false });
+    
+    setLiveState(newState);
     broadcast(envelope);
   };
 
   // ── sendMediaToLive ────────────────────────────────────────────────────────
   const sendMediaToLive = (mediaData) => {
+    const mediaType = mediaData.type || (mediaData.url?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image');
+    
+    const newState = {
+      songId: 'media', 
+      slideIndex: 0, 
+      content: '', 
+      isBlank: false,
+      mediaUrl: mediaData.url, 
+      mediaType: mediaType,
+      globalBackground: liveState.globalBackground || globalBackground,
+      label: mediaData.caption || 'Media'
+    };
+
     const envelope = {
       contentType: 'media',
       isBlank: false,
       data: {
-        type: mediaData.type || (mediaData.url?.match(/\.(mp4|webm|ogg)$/i) ? 'video' : 'image'),
+        ...newState,
+        type: mediaType,
         url: mediaData.url,
         caption: mediaData.caption || null,
         loop: mediaData.loop !== false,
         muted: mediaData.muted !== false,
         fit: mediaData.fit || 'cover',
+        background: newState.globalBackground
       }
     };
-    setLiveState({
-      songId: 'media', slideIndex: 0, content: '', isBlank: false,
-      mediaUrl: mediaData.url, mediaType: envelope.data.type
-    });
+
+    setLiveState(newState);
     broadcast(envelope);
   };
 
   // ── sendCountdownToLive ────────────────────────────────────────────────────
   const sendCountdownToLive = (countdownData) => {
+    const newState = {
+      songId: 'countdown',
+      slideIndex: 0,
+      content: '',
+      isBlank: false,
+      label: countdownData.title || 'Countdown',
+      globalBackground: liveState.globalBackground || globalBackground
+    };
+
     const envelope = {
       contentType: 'countdown',
       isBlank: false,
       data: {
+        ...newState,
         remainingSeconds: countdownData.remainingSeconds || countdownData.duration || 0,
         isRunning: countdownData.isRunning || false,
         title: countdownData.title || '',
         message: countdownData.message || '',
         endMessage: countdownData.endMessage || '',
-        background: countdownData.background || null,
+        background: newState.globalBackground
       }
     };
-    setLiveState({ songId: 'countdown', slideIndex: 0, content: '', isBlank: false });
+    setLiveState(newState);
     broadcast(envelope);
   };
 
@@ -812,6 +946,36 @@ export const ProjectProvider = ({ children }) => {
     exportLibrary, importLibrary,
     notification, notify,
     schedule, setSchedule, addToSchedule, addBlankToSchedule, removeFromSchedule,
+    addMediaToSchedule: (mediaItem) => {
+      const isPPT = mediaItem.type === 'ppt' || (mediaItem.path || '').match(/\.(pptx|ppt)$/i);
+      const mediaUrl = `${API_URL.replace('/api', '')}${mediaItem.path}`;
+      
+      const newItem = {
+        id: mediaItem.id,
+        instanceId: `media-${Date.now()}`,
+        title: mediaItem.name,
+        type: isPPT ? 'ppt' : mediaItem.type, 
+        mediaType: mediaItem.type,
+        slides: [{
+          type: isPPT ? 'ppt' : mediaItem.type,
+          url: mediaUrl,
+          mediaUrl: mediaUrl,
+          path: mediaItem.path,
+          thumbnail: mediaItem.thumbnail,
+          caption: mediaItem.name,
+          duration: mediaItem.duration,
+          loop: true,
+          embedUrl: isPPT ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(mediaUrl)}` : null
+        }],
+        url: mediaUrl,
+        mediaUrl: mediaUrl,
+        author: 'Media',
+        thumbnail: mediaItem.thumbnail
+      };
+      
+      setSchedule(prev => [...prev, newItem]);
+    },
+    setGlobalBackground,
     selectedItemIndex, setSelectedItemIndex,
     liveState,
     // Output/Live functions

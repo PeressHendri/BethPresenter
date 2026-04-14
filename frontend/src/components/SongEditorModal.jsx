@@ -115,7 +115,13 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
       if (!songTitle.trim()) { showNotify("Judul lagu diperlukan", "error"); return; }
       const songData = {
          title: songTitle, author, ccli, tags, slides, customOrder,
-         format: { fontFamily, fontSize, isBold, isItalic, isUnderline, isUppercase, spacing, lineHeight, textColor, shadowType, shadowBlur, strokeWidth, strokeColor, bgOpacity, radius, bgMediaUrl, alignment, vAlignment, animType, animDuration }
+         format: { 
+            fontFamily, fontSize, isBold, isItalic, isUnderline, isUppercase, 
+            spacing, lineHeight, textColor, textBackgroundColor: txtBgColor, 
+            shadowType, shadowBlur, strokeWidth, strokeColor, 
+            bgOpacity, radius, bgMediaUrl, alignment, vAlignment, 
+            animType, animDuration 
+         }
       };
       try {
          if (song && song.id) await updateSong(song.id, songData);
@@ -428,7 +434,7 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
                         {/* Darker Checkerboard Pattern */}
                         <div className="absolute inset-0 bg-[repeating-conic-gradient(#A0A0A5_0%_25%,#BDBDC2_0%_50%)] bg-[length:40px_40px]"></div>
                         
-                        <div className={`absolute inset-0 flex flex-col px-16 py-12 ${vAlignment==='Top'?'justify-start':vAlignment==='Bottom'?'justify-end':'justify-center'} transition-all duration-500`} style={{backgroundColor: bgOpacity > 0 ? `rgba(128,0,0,${bgOpacity/100})` : 'transparent'}}>
+                        <div className={`absolute inset-0 flex flex-col px-16 py-12 ${vAlignment==='Top'?'justify-start':vAlignment==='Bottom'?'justify-end':'justify-center'} transition-all duration-500`}>
                            <textarea
                               ref={textareaRef}
                               className="w-full bg-transparent border-none outline-none resize-none font-bold placeholder:text-white/70 text-center transition-all duration-300 custom-scrollbar overflow-hidden px-8"
@@ -443,8 +449,10 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
                                  lineHeight, 
                                  color: textColor, 
                                  textAlign: alignment,
-                                WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : 'none',
-                                textShadow: shadowType === 'None' ? 'none' : shadowType === 'Small' ? '1px 1px 2px rgba(0,0,0,0.8)' : shadowType === 'Medium' ? '3px 3px 6px rgba(0,0,0,0.8)' : shadowType === 'Large' ? `0 ${shadowBlur/5}px ${shadowBlur}px rgba(0,0,0,0.9)` : `0 0 ${shadowBlur}px ${textColor}`
+                                 backgroundColor: bgOpacity > 0 ? (txtBgColor + Math.round(bgOpacity * 2.55).toString(16).padStart(2, '0')) : 'transparent',
+                                 borderRadius: `${radius}px`,
+                                 padding: '20px',
+                                 textShadow: shadowType === 'None' ? 'none' : shadowType === 'Soft' ? '0 4px 16px rgba(0,0,0,0.85)' : shadowType === 'Strong' ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)' : '0 0 20px rgba(255,255,255,0.8)'
                               }}
                               value={currentSlide?.content}
                               placeholder="Ketik Disini Lirik nya"

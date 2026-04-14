@@ -58,14 +58,12 @@ const SkeletonLoader = () => (
 const AppRouter = () => {
   const { loading } = useProject();
 
-  if (loading) return <SkeletonLoader />;
-
   return (
     <Router>
       <GlobalNotification />
       <Routes>
-        <Route path="/" element={<PresentationPage />} />
-        <Route path="/songs" element={<PresentationPage />} />
+        <Route path="/" element={loading ? <SkeletonLoader /> : <PresentationPage />} />
+        <Route path="/songs" element={loading ? <SkeletonLoader /> : <PresentationPage />} />
         <Route path="/display/:pin" element={<DisplayClientPage />} />
         <Route path="/remote/:pin" element={<RemotePage />} />
         <Route path="/obs/:pin" element={<OBSPage />} />

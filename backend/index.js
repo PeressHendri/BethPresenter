@@ -244,7 +244,10 @@ const importBibles = () => {
   console.log(`[Bible Engine] Import complete. Total verses: ${finalCount}`);
 };
 
-importBibles();
+// Run import in background to not block server startup
+setImmediate(() => {
+  importBibles();
+});
 
 // --- API ENDPOINTS ---
 

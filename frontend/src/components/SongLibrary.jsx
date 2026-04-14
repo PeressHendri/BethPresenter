@@ -4,16 +4,18 @@ import { useProject } from '../context/ProjectContext';
 import { useDebounce } from '../hooks/useDebounce';
 
 const SongLibrary = ({ setIsSongEditorOpen, setEditingSong }) => {
-  const { songs, deleteSong, addToSchedule, currentProject } = useProject();
-  const [searchQuery, setSearchQuery] = useState('');
+  const { songs = [], deleteSong, addToSchedule } = useProject();
+  const [searchTerm, setSearchTerm] = useState('');
   
-  const debouncedSetSearch = useDebounce((value) => {
-    setSearchQuery(value);
-  }, 300);
+  // Use debounced value for filtering to prevent UI lag
+  const debouncedSearchQuery = useDebounce(searchTerm, 300);
 
-  const filteredSongs = songs.filter(s => 
-    (s.title + (s.author || '')).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Defensive check: Ensure songs is always an array
+  const filteredSongs = Array.isArray(songs) ? songs.filter(s => {
+    const title = s?.title || '';
+    const author = s?.author || '';
+    return (title + author).toLowerCase().includes((debouncedSearchQuery || '').toLowerCase());
+  }) : [];
 
   return (
     <div className="flex-1 flex flex-col bg-white overflow-hidden">
@@ -23,8 +25,8 @@ const SongLibrary = ({ setIsSongEditorOpen, setEditingSong }) => {
            <input 
              placeholder="Cari lagu..." 
              className="w-full h-11 bg-[#F8F9FA] border border-[#E2E2E6] pl-12 pr-4 text-[14px] font-bold outline-none focus:bg-white focus:border-[#800000] focus:shadow-[0_0_0_4px_rgba(128,0,0,0.05)] transition-all" 
-             defaultValue={searchQuery} 
-             onChange={(e) => debouncedSetSearch(e.target.value)} 
+             value={searchTerm} 
+             onChange={(e) => setSearchTerm(e.target.value)} 
            />
          </div>
          <button onClick={() => { setEditingSong(null); setIsSongEditorOpen(true); }} className="w-11 h-11 bg-[#80000010] border border-[#80000020] flex items-center justify-center text-[#800000] hover:bg-[#800000] hover:text-white transition-all"><Plus size={22} /></button>
