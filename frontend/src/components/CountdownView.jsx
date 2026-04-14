@@ -3,7 +3,7 @@ import { Timer, Plus, FolderOpen, Upload, Play, Pause, Trash2, MonitorPlay } fro
 import { useProject } from '../context/ProjectContext';
 
 const CountdownView = () => {
-  const { isLive, isRehearsal, sendManualToLive } = useProject();
+  const { isLive, isRehearsal, sendManualToLive, sendCountdownToLive } = useProject();
 
   // Countdown States
   const [countdownTitle, setCountdownTitle] = useState('The service is about to start');
@@ -54,8 +54,10 @@ const CountdownView = () => {
   }, [remainingSeconds, isCountdownRunning, isLive, isRehearsal, countdownTitle, countdownMessage]);
 
   const startCountdown = () => {
+    let duration = 0;
     if (countdownMode === 'duration') {
-      setRemainingSeconds(countdownMinutes * 60 + countdownSeconds);
+      duration = countdownMinutes * 60 + countdownSeconds;
+      setRemainingSeconds(duration);
     } else {
       const [h, m] = countdownTarget.split(':').map(Number);
       const now = new Date();
@@ -63,9 +65,16 @@ const CountdownView = () => {
       target.setHours(h, m, 0, 0);
       if (target < now) target.setDate(target.getDate() + 1);
       const diff = Math.floor((target - now) / 1000);
+      duration = diff;
       setRemainingSeconds(diff);
     }
     setIsCountdownRunning(true);
+    sendCountdownToLive({
+      title: countdownTitle,
+      message: countdownMessage,
+      remainingSeconds: duration,
+      isRunning: true
+    });
   };
 
   const displayMinutes = Math.floor(remainingSeconds / 60);

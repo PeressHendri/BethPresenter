@@ -452,7 +452,7 @@ const SongEditorModal = ({ isOpen, onClose, song = null }) => {
                                  backgroundColor: bgOpacity > 0 ? (txtBgColor + Math.round(bgOpacity * 2.55).toString(16).padStart(2, '0')) : 'transparent',
                                  borderRadius: `${radius}px`,
                                  padding: '20px',
-                                 textShadow: shadowType === 'None' ? 'none' : shadowType === 'Soft' ? '0 4px 16px rgba(0,0,0,0.85)' : shadowType === 'Strong' ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)' : '0 0 20px rgba(255,255,255,0.8)'
+                                 textShadow: shadowType === 'None' ? 'none' : shadowType === 'Soft' ? '0 4px 16px rgba(0,0,0,0.85)' : shadowType === 'Strong' ? '3px 3px 0 rgba(0,0,0,0.9), 6px 6px 0 rgba(0,0,0,0.4)' : shadowType === 'Large' ? '0 10px 40px rgba(0,0,0,0.85)' : shadowType === 'Glow' ? `0 0 20px ${textColor}` : '0 4px 16px rgba(0,0,0,0.85)'
                               }}
                               value={currentSlide?.content}
                               placeholder="Ketik Disini Lirik nya"

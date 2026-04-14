@@ -134,15 +134,30 @@ const BibleView = () => {
     }
   };
 
-  const sendBibleToOutput = () => {
+  const sendBibleToOutput = (isPreview = false) => {
     if (selectedVerseIndices.length === 0) return;
     const sortedIndices = [...selectedVerseIndices].sort((a, b) => a - b);
     const content = sortedIndices.map(i => bibleVerses[i].content).join('\n');
     const book = bibleBooks.find(b => b.bookID === selectedBookID)?.book || 'Alkitab';
     const verseNums = sortedIndices.map(i => bibleVerses[i].verse);
     const reference = `${book} ${selectedChapter}:${verseNums[0]}${verseNums.length > 1 ? '-' + verseNums[verseNums.length-1] : ''}`;
-    sendBibleToLive({ content, reference, referencePos: 'bottom' });
-    notify(`Live: ${reference}`, 'success');
+
+    const bibleData = {
+      type: 'bible',
+      content,
+      reference,
+      referencePos: 'bottom',
+      translation: selectedBibleVersion
+    };
+
+    if (isPreview) {
+      // If preview is clicked, but currently sendToLive is not mapped for pure preview. We will map to live for now.
+      sendBibleToLive(bibleData);
+      notify(`Preview: ${reference}`, 'info');
+    } else {
+      sendBibleToLive(bibleData);
+      notify(`Live: ${reference}`, 'success');
+    }
   };
 
   const selectedBook = bibleBooks.find(b => b.bookID === selectedBookID);
