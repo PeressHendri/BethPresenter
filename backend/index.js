@@ -9,6 +9,9 @@ const { spawn } = require('child_process');
 const { Index } = require('flexsearch');
 const { initOptimize } = require('./db/optimize');
 const SlideBroadcaster = require('./socket/broadcaster');
+const BackupManager = require('./db/backup');
+const PowerPointService = require('./services/powerpointService');
+const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,6 +31,15 @@ const broadcaster = new SlideBroadcaster(io);
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Multer for file uploads
+const powerpointUpload = multer({ dest: 'uploads/', limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB limit
+
+// Backup Manager
+const backupManager = new BackupManager();
+
+// PowerPoint Service
+const powerPointService = new PowerPointService();
 
 // Database Setup (SQLite)
 const dbPath = path.resolve(__dirname, '../database/beth_presenter.db');
@@ -160,12 +172,6 @@ if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir);
 app.use('/uploads', express.static(uploadsDir));
 
 // --- MEDIA UPLOAD MIDDLEWARE (Optional: assumes multer is installed, fallback provided) ---
-let multer;
-try {
-  multer = require('multer');
-} catch (e) {
-  console.warn('[Backend] Multer not found. Uploads will not work until you run: npm install multer');
-}
 
 const storage = multer ? multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads/media')),
@@ -680,13 +686,229 @@ io.on('connection', (socket) => {
     console.log(`[Remote] Command "${command}" → room_${pin}`);
   });
 
+  // ── Sync Countdown (Global Overlay) ──────────────────────────────────────
+  socket.on('sync-countdown', ({ pin, countdown }) => {
+    if (!pin || !countdown) return;
+    io.to(`room_${pin}`).emit('sync-countdown', { countdown });
+    io.to(`stage_${pin}`).emit('sync-countdown', { countdown });
+  });
+
+  // ── Sync Video Control ────────────────────────────────────────────────────
+  socket.on('sync-video-control', (payload) => {
+    const { pin } = payload;
+    if (!pin) return;
+    io.to(`room_${pin}`).emit('sync-video-control', payload);
+  });
+
   socket.on('disconnect', () => {
     broadcaster.cleanupClientRooms(socket);
     console.log('Device disconnected:', socket.id);
   });
 });
 
-const PORT = 5000;
+// ── EXPORT ENDPOINTS ───────────────────────────────────────────────────────
+
+// Export Songs
+app.get('/api/export/songs', async (req, res) => {
+  try {
+    const songsJson = await backupManager.exportSongs();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="beth_songs_${new Date().toISOString().split('T')[0]}.json"`);
+    res.send(songsJson);
+  } catch (error) {
+    console.error('Export songs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Export Presentations
+app.get('/api/export/presentations', async (req, res) => {
+  try {
+    const presentationsJson = await backupManager.exportPresentations();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="beth_presentations_${new Date().toISOString().split('T')[0]}.json"`);
+    res.send(presentationsJson);
+  } catch (error) {
+    console.error('Export presentations error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Export Media
+app.get('/api/export/media', async (req, res) => {
+  try {
+    const mediaJson = await backupManager.exportMedia();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="beth_media_${new Date().toISOString().split('T')[0]}.json"`);
+    res.send(mediaJson);
+  } catch (error) {
+    console.error('Export media error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Export Full Backup
+app.get('/api/export/all', async (req, res) => {
+  try {
+    const backupPath = await backupManager.exportFull();
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="beth_backup_${new Date().toISOString().split('T')[0]}.zip"`);
+    res.sendFile(backupPath, (err) => {
+      if (err) {
+        console.error('Send file error:', err);
+        res.status(500).json({ error: 'Failed to send backup file' });
+      } else {
+        // Clean up temp file after send
+        fs.unlink(backupPath, (unlinkErr) => {
+          if (unlinkErr) console.warn('Failed to cleanup temp file:', unlinkErr);
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Export full backup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── IMPORT ENDPOINTS ───────────────────────────────────────────────────────
+
+// Import Songs
+app.post('/api/import/songs', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const fileContent = fs.readFileSync(req.file.path, 'utf8');
+    const result = await backupManager.importSongs(fileContent);
+    
+    // Clean up temp file
+    fs.unlinkSync(req.file.path);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Import songs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import Presentations
+app.post('/api/import/presentations', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const fileContent = fs.readFileSync(req.file.path, 'utf8');
+    const result = await backupManager.importPresentations(fileContent);
+    
+    // Clean up temp file
+    fs.unlinkSync(req.file.path);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Import presentations error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import Media
+app.post('/api/import/media', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const fileContent = fs.readFileSync(req.file.path, 'utf8');
+    const result = await backupManager.importMedia(fileContent);
+    
+    // Clean up temp file
+    fs.unlinkSync(req.file.path);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Import media error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import Full Backup
+app.post('/api/import/all', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = await backupManager.importFull(req.file.path);
+    
+    // Clean up temp file
+    fs.unlinkSync(req.file.path);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Import full backup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── POWERPOINT IMPORT ENDPOINT ───────────────────────────────────────────────
+
+// PowerPoint Import Endpoint
+app.post('/api/import/powerpoint', powerpointUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No PowerPoint file uploaded' });
+    }
+
+    // Check file extension
+    const allowedExtensions = ['.pptx', '.ppt'];
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      // Clean up temp file
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Invalid file format. Only .pptx and .ppt files are supported.' });
+    }
+
+    console.log(`[PowerPoint] Importing: ${req.file.originalname} (${req.file.size} bytes)`);
+    
+    const result = await powerPointService.importPowerPoint(req.file.path);
+    
+    // Clean up temp file
+    fs.unlinkSync(req.file.path);
+    
+    console.log(`[PowerPoint] Successfully imported: ${result.slideCount} slides`);
+    
+    res.json({
+      success: true,
+      slides: result.slides,
+      slideCount: result.slideCount,
+      fileName: result.fileName
+    });
+  } catch (error) {
+    console.error('PowerPoint import error:', error);
+    
+    // Clean up temp file if it exists
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup temp file:', cleanupError);
+      }
+    }
+    
+    res.status(500).json({ 
+      error: error.message,
+      message: 'Failed to import PowerPoint file. Please ensure the file is not corrupted and try again.'
+    });
+  }
+});
+
+// Start Server
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`\x1b[35m%s\x1b[0m`, `[BethPresenter Backend] Multi-Display Server active at http://localhost:${PORT}`);
+  console.log(`🚀 BethPresenter API Server running on http://localhost:${PORT}`);
+  console.log('📡 Socket.io server ready for real-time sync');
+  console.log('🎯 Broadcast throttling: 50ms batch window');
+  console.log('💾 Backup/Export endpoints ready');
 });

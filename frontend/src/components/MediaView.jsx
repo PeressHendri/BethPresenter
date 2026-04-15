@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Upload, CheckSquare, Image as ImageIcon, 
-  Video, Play, List, Grid, MoreVertical, 
-  Filter, Trash2, Clock, Loader2, AlertCircle, MonitorPlay, X, Plus
+  Video, Play, Pause, Volume2, VolumeX, RotateCw, List, Grid, MoreVertical, 
+  Filter, Trash2, Clock, Loader2, AlertCircle, MonitorPlay, X, Plus, Repeat
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProject } from '../context/ProjectContext';
@@ -11,7 +11,16 @@ import { optimizeImage, getOptimizedUrl } from '../utils/imageOptimize';
 const API_BASE = 'http://localhost:5000';
 
 const MediaView = () => {
-  const { notify, addToSchedule, setGlobalBackground, liveState, addMediaToSchedule } = useProject();
+  const { notify, addToSchedule, setGlobalBackground, liveState, addMediaToSchedule, broadcastVideoControl } = useProject();
+  const [videoControls, setVideoControls] = useState({
+    isPlaying: true,
+    isMuted: true,
+    isLoop: true,
+    currentTime: 0,
+    duration: 0
+  });
+  const previewVideoRef = useRef(null);
+  const modalVideoRef = useRef(null);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [mediaList, setMediaList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -234,11 +243,79 @@ const MediaView = () => {
                 <h3 className="font-black uppercase tracking-tight text-[#1D1D1F]">{selectedMedia.original_name}</h3>
                 <button onClick={() => setSelectedMedia(null)} className="text-[#AEAEB2] hover:text-[#800000]"><X size={24} /></button>
               </div>
-              <div className="bg-black aspect-video flex items-center justify-center">
+              <div className="bg-black aspect-video flex items-center justify-center relative group">
                 {selectedMedia.type === 'image' ? (
                   <img src={`${API_BASE}${selectedMedia.path}`} className="max-w-full max-h-full object-contain" alt="" />
                 ) : (
-                  <video src={`${API_BASE}${selectedMedia.path}`} controls autoPlay className="max-w-full max-h-full" />
+                  <>
+                    <video 
+                      ref={modalVideoRef}
+                      src={`${API_BASE}${selectedMedia.path}`} 
+                      autoPlay={videoControls.isPlaying}
+                      muted={videoControls.isMuted}
+                      loop={videoControls.isLoop}
+                      className="max-w-full max-h-full"
+                      onTimeUpdate={(e) => setVideoControls(prev => ({ ...prev, currentTime: e.target.currentTime }))}
+                      onLoadedMetadata={(e) => setVideoControls(prev => ({ ...prev, duration: e.target.duration }))}
+                    />
+                    
+                    {/* MODUL 8: Video Controls Overlay */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newPlaying = !videoControls.isPlaying;
+                          if (modalVideoRef.current) {
+                            if (newPlaying) modalVideoRef.current.play(); else modalVideoRef.current.pause();
+                          }
+                          setVideoControls(prev => ({ ...prev, isPlaying: newPlaying }));
+                          broadcastVideoControl({ isPlaying: newPlaying });
+                        }}
+                        className="text-white hover:text-[#800000] transition-colors"
+                      >
+                        {videoControls.isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (modalVideoRef.current) {
+                            modalVideoRef.current.currentTime = 0;
+                            modalVideoRef.current.play();
+                          }
+                          setVideoControls(prev => ({ ...prev, currentTime: 0, isPlaying: true }));
+                          broadcastVideoControl({ currentTime: 0, isPlaying: true });
+                        }}
+                        className="text-white hover:text-[#800000] transition-colors"
+                      >
+                        <RotateCw size={16} />
+                      </button>
+                      <div className="w-px h-4 bg-white/20" />
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newMuted = !videoControls.isMuted;
+                          if (modalVideoRef.current) modalVideoRef.current.muted = newMuted;
+                          setVideoControls(prev => ({ ...prev, isMuted: newMuted }));
+                          broadcastVideoControl({ isMuted: newMuted });
+                        }}
+                        className="text-white hover:text-[#800000] transition-colors"
+                      >
+                        {videoControls.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newLoop = !videoControls.isLoop;
+                          if (modalVideoRef.current) modalVideoRef.current.loop = newLoop;
+                          setVideoControls(prev => ({ ...prev, isLoop: newLoop }));
+                          broadcastVideoControl({ isLoop: newLoop });
+                        }}
+                        className={`text-white hover:text-[#800000] transition-colors ${videoControls.isLoop ? 'text-[#800000]' : ''}`}
+                      >
+                        <Repeat size={16} />
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
               <div className="p-6 border-t flex justify-end gap-4 shadow-inner">

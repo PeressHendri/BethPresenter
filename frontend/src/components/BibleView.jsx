@@ -1,283 +1,403 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Search, BookOpen, ChevronLeft, ChevronRight, 
-  ChevronDown, X, Layout, Layers, Tv, Image as ImageIcon
+  Search, BookOpen, ChevronRight, ChevronLeft, 
+  Plus, Send, Layout, Layers, X, BookText
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
 const BibleView = () => {
-  const { language, sendBibleToLive, notify } = useProject();
-
-  // Bible States
-  const [bibleVersions, setBibleVersions] = useState({});
-  const [selectedBibleVersion, setSelectedBibleVersion] = useState('IndonesiaTB');
-  const [bibleBooks, setBibleBooks] = useState([]);
-  const [selectedBookID, setSelectedBookID] = useState(1);
+  const { setLiveSlide, language, notify } = useProject();
+  
+  const translations = ['KJV', 'ASV', 'Tagalog', 'IndonesiaTB', 'BIS', 'FAYH'];
+  const [versions] = useState(['KJV', 'ASV', 'TB-ID']);
+  const [selectedVersion, setSelectedVersion] = useState('TB-ID');
+  
+  const [books] = useState([
+    { id: 1, name: 'Kejadian', chapters: 50 },
+    { id: 2, name: 'Keluaran', chapters: 40 },
+    { id: 3, name: 'Imamat', chapters: 27 },
+    { id: 4, name: 'Bilangan', chapters: 36 },
+    { id: 40, name: 'Matius', chapters: 28 },
+    { id: 43, name: 'Yohanes', chapters: 21 },
+    { id: 44, name: 'Kisah Para Rasul', chapters: 28 },
+    { id: 45, name: 'Roma', chapters: 16 },
+    { id: 46, name: '1 Korintus', chapters: 16 },
+    { id: 50, name: 'Whyakubus', chapters: 5 },
+    { id: 51, name: '1 Petrus', chapters: 5 },
+    { id: 52, name: '2 Petrus', chapters: 3 },
+    { id: 53, name: '1 Yohanes', chapters: 5 },
+    { id: 54, name: 'Wahyu', chapters: 22 },
+  ]);
+  
+  const [selectedBook, setSelectedBook] = useState(books[0]);
   const [selectedChapter, setSelectedChapter] = useState(1);
-  const [maxChapters, setMaxChapters] = useState(50);
-  const [bibleVerses, setBibleVerses] = useState([]);
-  const [selectedVerseIndices, setSelectedVerseIndices] = useState([]);
-  const [bibleSearch, setBibleSearch] = useState('');
+  const [verses, setVerses] = useState([]);
+  const [selectedVerseIds, setSelectedVerseIds] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [isSearchingBible, setIsSearchingBible] = useState(false);
-  const [bibleLayout, setBibleLayout] = useState('list'); // 'list' or 'paragraph'
-  const [searchActiveIndex, setSearchActiveIndex] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  // MODUL 14: Multi-version side-by-side state
+  const [multiVersionMode, setMultiVersionMode] = useState(false);
+  const [selectedTranslations, setSelectedTranslations] = useState(['KJV', 'IndonesiaTB']);
+  const [layoutMode, setLayoutMode] = useState('side-by-side'); // 'side-by-side' or 'stacked'
+  const [multiVerses, setMultiVerses] = useState([]);
 
-  // Fetch Bible Meta
+  // Mock data generator for Bible verses
   useEffect(() => {
-    fetch('http://localhost:5000/api/bible/versions').then(res => res.json()).then(setBibleVersions);
-  }, []);
+    const dummyVerses = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1,
+      number: i + 1,
+      text: `Ini adalah teks ayat Alkitab ke-${i + 1} dari kitab ${selectedBook.name} pasal ${selectedChapter}. Tuhan itu baik bagi semua orang.`
+    }));
+    setVerses(dummyVerses);
+    setSelectedVerseIds([]);
+  }, [selectedBook, selectedChapter]);
 
-  useEffect(() => {
-    if (selectedBibleVersion) {
-      fetch(`http://localhost:5000/api/bible/books?version=${selectedBibleVersion}`)
-        .then(res => res.json())
-        .then(setBibleBooks);
-    }
-  }, [selectedBibleVersion]);
-
-  // Fetch Chapters count
-  useEffect(() => {
-    if (selectedBookID) {
-      fetch(`http://localhost:5000/api/bible/chapters/${selectedBookID}`)
-        .then(res => res.json())
-        .then(data => setMaxChapters(data.maxChapter || 1));
-    }
-  }, [selectedBookID]);
-
-  // Fetch Verses
-  useEffect(() => {
-    if (selectedBibleVersion && selectedBookID && selectedChapter) {
-      fetch(`http://localhost:5000/api/bible/verses?version=${selectedBibleVersion}&bookID=${selectedBookID}&chapter=${selectedChapter}`)
-        .then(res => res.json())
-        .then(data => {
-          setBibleVerses(data);
-          setSelectedVerseIndices([]);
-        })
-        .catch(err => {
-          console.error('Fetch Bible error:', err);
-          notify(language === 'id' ? 'Gagal memuat ayat Alkitab.' : 'Failed to load Bible verses.', 'error');
-        });
-    }
-  }, [selectedBibleVersion, selectedBookID, selectedChapter]);
-
-  const triggerSearch = (query) => {
-    if (!query || query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    setIsSearchingBible(true);
-    fetch(`http://localhost:5000/api/bible/search?version=${selectedBibleVersion}&query=${query}`)
-      .then(res => res.json())
-      .then(data => {
-        setSearchResults(data);
-        setSearchActiveIndex(0);
-        setIsSearchingBible(false);
-      })
-      .catch(() => setIsSearchingBible(false));
-  };
-
-  // Auto-search Search Logic (Debounced)
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (bibleSearch.length >= 3) {
-        triggerSearch(bibleSearch);
-      } else {
-        setSearchResults([]);
-      }
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [bibleSearch, selectedBibleVersion]);
-
-  const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      
-      // If results already exist, select first one automatically on Enter AND send to live
-      if (searchResults.length > 0) {
-        const first = searchResults[0];
-        const book = bibleBooks.find(b => b.book.toLowerCase() === first.book.toLowerCase());
-        
-        const label = `${first.book} ${first.chapter}:${first.verse}`;
-        sendBibleToLive({
-          content: first.content,
-          reference: label,
-          referencePos: 'bottom',
-        });
-        notify(language === 'id' ? `Live: ${label}` : `Live: ${label}`, 'success');
-
-        if (book) {
-          setSelectedBookID(book.bookID);
-          setSelectedChapter(first.chapter);
-          setBibleSearch('');
-          notify(language === 'id' ? `Live: ${label}` : `Live: ${label}`, 'success');
-        }
-      } else {
-        triggerSearch(bibleSearch);
-      }
-    }
-  };
-
-  const toggleVerseSelection = (index, e) => {
-    if (bibleVerses[index]?.type === 't') return;
-    if (e.shiftKey && selectedVerseIndices.length > 0) {
-      const last = selectedVerseIndices[selectedVerseIndices.length - 1];
-      const start = Math.min(last, index);
-      const end = Math.max(last, index);
-      const range = Array.from({ length: end - start + 1 }, (_, i) => start + i)
-        .filter(idx => bibleVerses[idx]?.type !== 't');
-      setSelectedVerseIndices(Array.from(new Set([...selectedVerseIndices, ...range])));
-    } else if (e.metaKey || e.ctrlKey) {
-      setSelectedVerseIndices(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
+  const handleVerseToggle = (id, event) => {
+    if (event.ctrlKey || event.metaKey) {
+      // Multi-select with Ctrl/Cmd + Click
+      setSelectedVerseIds(prev => 
+        prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
+      );
+    } else if (event.shiftKey && selectedVerseIds.length > 0) {
+      // Range select with Shift + Click
+      const lastSelected = Math.max(...selectedVerseIds);
+      const current = id;
+      const start = Math.min(lastSelected, current);
+      const end = Math.max(lastSelected, current);
+      const range = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      setSelectedVerseIds(range);
     } else {
-      setSelectedVerseIndices([index]);
+      // Single select
+      setSelectedVerseIds([id]);
     }
   };
 
-  const sendBibleToOutput = (isPreview = false) => {
-    if (selectedVerseIndices.length === 0) return;
-    const sortedIndices = [...selectedVerseIndices].sort((a, b) => a - b);
-    const content = sortedIndices.map(i => bibleVerses[i].content).join('\n');
-    const book = bibleBooks.find(b => b.bookID === selectedBookID)?.book || 'Alkitab';
-    const verseNums = sortedIndices.map(i => bibleVerses[i].verse);
-    const reference = `${book} ${selectedChapter}:${verseNums[0]}${verseNums.length > 1 ? '-' + verseNums[verseNums.length-1] : ''}`;
+  const handleSendToOutput = () => {
+    if (selectedVerseIds.length === 0) return;
+    
+    const sortedIds = [...selectedVerseIds].sort((a,b) => a-b);
+    const selectedText = sortedIds.map(id => {
+      const v = verses.find(verse => verse.id === id);
+      return `(${v.number}) ${v.text}`;
+    }).join('\n\n');
 
-    const bibleData = {
+    const bibleSlide = {
+      id: `bible-${Date.now()}`,
+      title: `${selectedBook.name} ${selectedChapter}:${sortedIds.join(',')}`,
       type: 'bible',
-      content,
-      reference,
-      referencePos: 'bottom',
-      translation: selectedBibleVersion
+      content: selectedText,
+      reference: `${selectedBook.name} ${selectedChapter}:${sortedIds[0]}${sortedIds.length > 1 ? '-' + sortedIds[sortedIds.length-1] : ''}`,
+      format: {
+        fontSize: '42px',
+        fontFamily: 'Outfit',
+        textAlign: 'center',
+        vAlignment: 'Center',
+        textColor: '#FFFFFF',
+        bgOpacity: 50,
+        shadowType: 'Strong'
+      }
     };
 
-    if (isPreview) {
-      // If preview is clicked, but currently sendToLive is not mapped for pure preview. We will map to live for now.
-      sendBibleToLive(bibleData);
-      notify(`Preview: ${reference}`, 'info');
+    // Send to output using sendBibleToLive
+    const { sendBibleToLive } = useProject();
+    sendBibleToLive(bibleSlide, bibleSlide.format);
+    
+    notify('Ayat dikirim ke Output', 'success');
+  };
+
+  const handleSearch = () => {
+    if (!searchQuery.trim()) return;
+    
+    // Parse reference like "Yohanes 3:16" or "John 3:16-17"
+    const refMatch = searchQuery.match(/^(\w+)\s+(\d+):(\d+)(?:-(\d+))?$/i);
+    if (refMatch) {
+      const [, bookName, chapter, verseStart, verseEnd] = refMatch;
+      const book = books.find(b => b.name.toLowerCase().includes(bookName.toLowerCase()));
+      if (book) {
+        setSelectedBook(book);
+        setSelectedChapter(parseInt(chapter));
+        if (verseStart && verseEnd) {
+          const start = parseInt(verseStart);
+          const end = parseInt(verseEnd);
+          const range = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+          setSelectedVerseIds(range);
+        } else if (verseStart) {
+          setSelectedVerseIds([parseInt(verseStart)]);
+        }
+      }
     } else {
-      sendBibleToLive(bibleData);
-      notify(`Live: ${reference}`, 'success');
+      // Search by content
+      const results = verses.filter(v => 
+        v.text.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      if (results.length > 0) {
+        setSelectedVerseIds(results.map(v => v.id));
+      }
     }
   };
 
-  const selectedBook = bibleBooks.find(b => b.bookID === selectedBookID);
+  // MODUL 14: Multi-version verse selection
+  const handleMultiVerseSelect = async (verse) => {
+    try {
+      const multiVerseData = {
+        reference: verse.reference,
+        translations: {}
+      };
+
+      // Fetch verse from each selected translation
+      for (const translation of selectedTranslations) {
+        // Mock API call - replace with actual API
+        const verseText = await fetchVerseFromTranslation(translation, verse.book, verse.chapter, verse.verse);
+        multiVerseData.translations[translation] = verseText;
+      }
+
+      setMultiVerses(prev => {
+        const exists = prev.find(v => v.reference === verse.reference);
+        if (exists) {
+          return prev.filter(v => v.reference !== verse.reference);
+        } else {
+          return [...prev, multiVerseData];
+        }
+      });
+    } catch (error) {
+      console.error('Failed to fetch multi-version verses:', error);
+    }
+  };
+
+  // Mock function to fetch verse from translation
+  const fetchVerseFromTranslation = async (translation, book, chapter, verse) => {
+    // This would be an actual API call to the backend
+    // For now, return mock text based on translation
+    const mockTexts = {
+      'KJV': `In the beginning God created the heaven and the earth. (${book} ${chapter}:${verse})`,
+      'ASV': `In the beginning God created the heavens and the earth. (${book} ${chapter}:${verse})`,
+      'Tagalog': `Sa simula ay nilikha ng Dios ang langit at ang lupa. (${book} ${chapter}:${verse})`,
+      'IndonesiaTB': `Pada mulanya Allah menciptakan langit dan bumi. (${book} ${chapter}:${verse})`,
+      'BIS': `Pada waktu permulaan, Allah menciptakan langit dan bumi. (${book} ${chapter}:${verse})`,
+      'FAYH': `Pada mulanya Allah menciptakan langit dan bumi. (${book} ${chapter}:${verse})`
+    };
+    
+    return mockTexts[translation] || `Verse ${verse} from ${translation}`;
+  };
+
+  // MODUL 14: Send multi-version verses to output
+  const sendMultiVersesToOutput = () => {
+    if (multiVerses.length === 0) return;
+    
+    const { sendBibleToLive } = useProject();
+    
+    // Create combined slide data
+    const slideData = {
+      type: 'bible-multi',
+      reference: multiVerses[0].reference,
+      translations: multiVerses[0].translations,
+      layoutMode: layoutMode,
+      selectedTranslations: selectedTranslations
+    };
+    
+    sendBibleToLive(slideData);
+  };
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden font-['Outfit'] text-[#2D2D2E]">
-      {/* Alkitab Toolbar */}
-      <div className="h-[56px] px-6 border-b border-[#E2E2E6] flex items-center justify-between gap-4 bg-[#F8F9FA]/50">
-        <div className="flex items-center gap-3">
-          <select 
-            value={selectedBibleVersion} 
-            onChange={(e) => setSelectedBibleVersion(e.target.value)}
-            className="bg-white border border-[#E2E2E6] px-3 py-1.5 text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-[#80000020] min-w-[200px] shadow-sm"
-          >
-            {Object.entries(bibleVersions).map(([lang, versions]) => (
-              <optgroup key={lang} label={lang.toUpperCase()}>
-                {versions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          
-          <div className="relative group">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AEAEB2]" />
-            <input 
-              type="text" 
-              placeholder="Cari referensi atau teks..."
-              value={bibleSearch}
-              onChange={(e) => setBibleSearch(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="bg-white border-2 border-[#E2E2E6] pl-10 pr-4 py-1.5 text-[13px] font-bold focus:border-[#800000] focus:outline-none w-[400px] transition-all"
-            />
+    <div className="flex-1 flex flex-col bg-white text-[#2D2D2E] font-['Outfit'] overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-[#E2E2E6] bg-[#F8F9FA]">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[18px] font-black text-[#1D1D1F]">Alkitab</h2>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setMultiVersionMode(!multiVersionMode)}
+              className={`px-4 py-2 rounded-lg text-[12px] font-black transition-all ${
+                multiVersionMode 
+                  ? 'bg-[#800000] text-white' 
+                  : 'bg-white border border-[#E2E2E6] text-[#AEAEB2]'
+              }`}
+            >
+              {multiVersionMode ? 'Single Version' : 'Multi Version'}
+            </button>
+            <button 
+              onClick={multiVersionMode ? sendMultiVersesToOutput : handleSendToOutput}
+              disabled={(multiVersionMode ? multiVerses : selectedVerseIds).length === 0}
+              className="px-4 py-2 bg-[#800000] text-white rounded-lg text-[12px] font-black disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              Kirim ke Output ({multiVersionMode ? multiVerses.length : selectedVerseIds.length})
+            </button>
           </div>
         </div>
-        
-        <div className="flex items-center gap-1 bg-white p-1 border border-[#E2E2E6] shadow-sm">
-           <div onClick={() => setBibleLayout('list')} className={`p-1.5 cursor-pointer ${bibleLayout === 'list' ? 'bg-[#80000010] text-[#800000]' : 'text-[#AEAEB2]'}`}><Layout size={16} /></div>
-           <div onClick={() => setBibleLayout('paragraph')} className={`p-1.5 cursor-pointer ${bibleLayout === 'paragraph' ? 'bg-[#80000010] text-[#800000]' : 'text-[#AEAEB2]'}`}><Layers size={16} /></div>
-        </div>
       </div>
 
-      {/* Nav */}
-      <div className="h-[48px] px-6 border-b border-[#F1F1F3] flex items-center justify-between bg-white shrink-0">
-         <div className="flex items-center gap-1.5">
-            <BookOpen size={14} className="text-[#8E8E93]" /><span className="text-[12px] font-black text-[#8E8E93]">KITAB</span>
-            <select value={selectedBookID} onChange={(e) => { setSelectedBookID(parseInt(e.target.value)); setSelectedChapter(1); }} className="text-[12px] font-black text-[#8E8E93] bg-transparent outline-none">
-               {bibleBooks.map(b => <option key={b.bookID} value={b.bookID}>{b.book}</option>)}
-            </select>
-            <span className="text-[#E2E2E6]">/</span>
-            <select value={selectedChapter} onChange={(e) => setSelectedChapter(parseInt(e.target.value))} className="text-[12px] font-black text-[#800000] bg-transparent outline-none">
-               {Array.from({ length: maxChapters }, (_, i) => i + 1).map(c => <option key={c} value={c}>Pasal {c}</option>)}
-            </select>
-         </div>
-         <div className="flex items-center gap-1">
-            <div onClick={() => setSelectedChapter(prev => Math.max(1, prev - 1))} className="p-1 text-[#AEAEB2] hover:text-[#800000] cursor-pointer"><ChevronLeft size={18} /></div>
-            <div className="text-[13px] font-black text-[#800000] px-3">{selectedBook?.book} {selectedChapter}</div>
-            <div onClick={() => setSelectedChapter(prev => Math.min(maxChapters, prev + 1))} className="p-1 text-[#AEAEB2] hover:text-[#800000] cursor-pointer"><ChevronRight size={18} /></div>
-         </div>
-      </div>
-
-      {/* Verse List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
-        {isSearchingBible ? (
-          <div className="h-full flex items-center justify-center spinner"></div>
-        ) : bibleSearch ? (
-          <div className="p-6">
-            <h3 className="text-[11px] font-black text-[#AEAEB2] uppercase mb-4">Hasil: {searchResults.length} ayat</h3>
-            <div className="flex flex-col gap-2">
-                <div key={idx} 
-                     onClick={() => {
-                        const book = bibleBooks.find(b => b.book === res.book);
-                        if (book) { setSelectedBookID(book.bookID); setSelectedChapter(res.chapter); setBibleSearch(''); }
-                     }} 
-                     onDoubleClick={() => {
-                        const label = `${res.book} ${res.chapter}:${res.verse}`;
-                        sendBibleToLive({ content: res.content, reference: label, referencePos: 'bottom' });
-                        notify(`Live: ${label}`, 'success');
-                     }}
-                     className="p-4 rounded-xl border border-[#F1F1F3] hover:bg-[#80000005] cursor-pointer group transition-all"
+      {/* MODUL 14: Multi-version controls */}
+      {multiVersionMode && (
+        <div className="px-6 py-4 border-b border-[#E2E2E6] bg-[#F8F9FA]">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-[12px] font-black text-[#8E8E93] uppercase tracking-[0.2em] mb-3">Pilih Terjemahan</h3>
+              <div className="flex flex-wrap gap-2">
+                {translations.map(translation => (
+                  <button
+                    key={translation}
+                    onClick={() => {
+                      setSelectedTranslations(prev => {
+                        if (prev.includes(translation)) {
+                          return prev.filter(t => t !== translation);
+                        } else if (prev.length < 3) {
+                          return [...prev, translation];
+                        }
+                        return prev;
+                      });
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                      selectedTranslations.includes(translation)
+                        ? 'bg-[#800000] text-white'
+                        : 'bg-white border border-[#E2E2E6] text-[#AEAEB2]'
+                    }`}
+                  >
+                    {translation}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-[12px] font-black text-[#8E8E93] uppercase tracking-[0.2em] mb-3">Layout</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setLayoutMode('side-by-side')}
+                  className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${
+                    layoutMode === 'side-by-side'
+                      ? 'bg-[#800000] text-white'
+                      : 'bg-white border border-[#E2E2E6] text-[#AEAEB2]'
+                  }`}
                 >
-                   <div className="flex justify-between items-start">
-                      <span className="text-[11px] font-black text-[#800000]">{res.book} {res.chapter}:{res.verse}</span>
-                      <span className="text-[9px] font-black text-[#AEAEB2] opacity-0 group-hover:opacity-100 uppercase tracking-tighter">Double-click to Live</span>
-                   </div>
-                   <p className="text-[14px] font-medium text-[#2D2D2E] mt-1">{res.content}</p>
-                </div>
+                  Side-by-Side
+                </button>
+                <button
+                  onClick={() => setLayoutMode('stacked')}
+                  className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${
+                    layoutMode === 'stacked'
+                      ? 'bg-[#800000] text-white'
+                      : 'bg-white border border-[#E2E2E6] text-[#AEAEB2]'
+                  }`}
+                >
+                  Stacked
+                </button>
+              </div>
             </div>
           </div>
-        ) : (
-          <div className={bibleLayout === 'paragraph' ? 'p-12 select-text' : 'flex flex-col select-text'}>
-            {bibleVerses.map((v, idx) => (
-              <div key={idx} id={`verse-${idx}`} 
-                   onClick={(e) => toggleVerseSelection(idx, e)}
-                   onDoubleClick={() => {
-                      if (v.type === 't') return;
-                      const book = bibleBooks.find(b => b.bookID === selectedBookID)?.book || 'Alkitab';
-                      const reference = `${book} ${selectedChapter}:${v.verse}`;
-                      sendBibleToLive({ content: v.content, reference, referencePos: 'bottom' });
-                      notify(`Live: ${reference}`, 'success');
-                   }}
-                   className={`px-8 py-4 flex gap-5 transition-all cursor-pointer border-b border-[#F1F1F3]/30 ${selectedVerseIndices.includes(idx) ? 'bg-[#80000010] border-l-4 border-[#800000]' : 'hover:bg-[#F8F9FA]'}`}>
-                {v.type === 't' ? (
-                  <h2 className="text-[18px] font-black text-[#800000]">{v.content}</h2>
+        </div>
+      )}
+
+      {/* Navigasi Kitab & Pasal */}
+      <div className="w-[240px] border-r border-[#E2E2E6] flex flex-col overflow-hidden bg-[#F8F9FA]">
+        <div className="p-4 border-b border-[#E2E2E6] bg-white">
+          <span className="text-[10px] font-black text-[#AEAEB2] uppercase tracking-[0.2em]">KITAB</span>
+        </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {books.map(book => (
+            <div 
+              key={book.id}
+              onClick={() => { setSelectedBook(book); setSelectedChapter(1); }}
+              className={`px-6 py-3 text-[13px] font-bold cursor-pointer transition-all ${
+                selectedBook.id === book.id ? 'bg-[#800000] text-white' : 'hover:bg-[#80000005] text-[#424245]'
+              }`}
+            >
+              {book.name}
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t border-[#E2E2E6] bg-white">
+          <span className="text-[10px] font-black text-[#AEAEB2] uppercase tracking-[0.2em]">PASAL</span>
+          <div className="grid grid-cols-4 gap-2 mt-3">
+            {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map(c => (
+              <div 
+                key={c}
+                onClick={() => setSelectedChapter(c)}
+                className={`aspect-square flex items-center justify-center text-[11px] font-black rounded-lg cursor-pointer transition-all ${
+                  selectedChapter === c ? 'bg-[#800000] text-white shadow-lg shadow-[#80000020]' : 'bg-white border border-[#E2E2E6] text-[#AEAEB2] hover:border-[#80000040]'
+                }`}
+              >
+                {c}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Daftar Ayat */}
+      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+        <div className="p-4 px-8 border-b border-[#F1F1F3] bg-white flex items-center justify-between">
+          <h4 className="text-[14px] font-black text-[#1D1D1F]">{selectedBook.name} {selectedChapter}</h4>
+          <span className="text-[10px] font-black text-[#AEAEB2] uppercase tracking-widest">{selectedVerseIds.length} verse{selectedVerseIds.length !== 1 ? 's' : ''} selected</span>
+        </div>
+        
+        {/* MODUL 14: Multi-version Preview */}
+        {multiVersionMode && multiVerses.length > 0 && (
+          <div className="px-8 py-4 border-b border-[#E2E2E6] bg-[#F8F9FA]">
+            <h3 className="text-[12px] font-black text-[#8E8E93] uppercase tracking-[0.2em] mb-4">Preview Multi-Version</h3>
+            {multiVerses.map((multiVerse, index) => (
+              <div key={index} className="mb-4 p-4 bg-white rounded-lg border border-[#E2E2E6]">
+                <p className="font-black text-sm mb-3">{multiVerse.reference}</p>
+                {layoutMode === 'side-by-side' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedTranslations.map(translation => (
+                      <div key={translation} className="text-center">
+                        <p className="text-[10px] font-black text-[#800000] mb-1">{translation}</p>
+                        <p className="text-sm leading-relaxed">{multiVerse.translations[translation]}</p>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <>
-                    <div className={`w-7 h-7 flex items-center justify-center shrink-0 text-[11px] font-black ${selectedVerseIndices.includes(idx) ? 'bg-[#800000] text-white' : 'bg-[#F1F1F3] text-[#AEAEB2]'}`}>{v.verse}</div>
-                    <p className={`text-[17px] font-medium ${selectedVerseIndices.includes(idx) ? 'text-[#800000]' : ''}`}>{v.content}</p>
-                  </>
+                  <div className="space-y-3">
+                    {selectedTranslations.map(translation => (
+                      <div key={translation} className="border-l-4 border-[#800000] pl-3">
+                        <p className="text-[10px] font-black text-[#800000] mb-1">{translation}</p>
+                        <p className="text-sm leading-relaxed">{multiVerse.translations[translation]}</p>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}
           </div>
         )}
-      </div>
 
-      <div className="h-[64px] px-8 bg-[#F8F9FA] border-t flex items-center justify-between shrink-0">
-         <span className="text-[12px] font-black text-[#800000] uppercase">{selectedVerseIndices.length} dipilih</span>
-         <div className="flex items-center gap-3">
-            <button onClick={() => sendBibleToOutput(true)} className="px-5 py-2.5 text-[12px] font-black text-[#AEAEB2] hover:bg-white border hover:border-[#E2E2E6]">Pratinjau</button>
-            <button onClick={() => sendBibleToOutput(false)} className="bg-[#800000] text-white px-6 py-2.5 text-[12px] font-black transition-all shadow-md">Kirim ke Output</button>
-         </div>
+        <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
+          {verses.map(v => (
+            <div 
+              key={v.id}
+              onClick={(e) => handleVerseToggle(v.id, e)}
+              className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                selectedVerseIds.includes(v.id) 
+                  ? 'bg-[#80000005] border-[#800000] shadow-md' 
+                  : 'bg-white border-transparent hover:border-[#F1F1F3]'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-[12px] font-black text-[#800000] mt-1">{v.number}</span>
+                <p className="flex-1 text-[14px] leading-relaxed">
+                  {v.text}
+                </p>
+              </div>
+            </div>
+            ))}
+          </div>
+
+          {/* Send Bar */}
+          <div className="p-6 bg-white border-t border-[#E2E2E6] flex justify-end shrink-0">
+            <button 
+              onClick={handleSendToOutput}
+              disabled={selectedVerseIds.length === 0}
+              className={`px-8 py-3 rounded-xl flex items-center gap-3 text-[12px] font-black transition-all shadow-xl shadow-[#80000010] ${
+                selectedVerseIds.length > 0 ? 'bg-[#800000] text-white hover:bg-black' : 'bg-[#F1F1F3] text-[#AEAEB2] cursor-not-allowed shadow-none'
+              }`}
+            >
+              <Send size={16} />
+              KIRIM KE OUTPUT
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

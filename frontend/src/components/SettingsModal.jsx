@@ -27,23 +27,238 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleImportLagu = () => {
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [importProgress, setImportProgress] = useState(0);
+
+  const handleExportSongs = async () => {
+    setIsExporting(true);
+    setExportProgress(0);
+    try {
+      const response = await fetch('http://localhost:5000/api/export/songs');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `beth_songs_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        notify('Songs exported successfully', 'success');
+      }
+    } catch (error) {
+      notify('Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+    }
+  };
+
+  const handleExportPresentations = async () => {
+    setIsExporting(true);
+    setExportProgress(0);
+    try {
+      const response = await fetch('http://localhost:5000/api/export/presentations');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `beth_presentations_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        notify('Presentations exported successfully', 'success');
+      }
+    } catch (error) {
+      notify('Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+    }
+  };
+
+  const handleExportMedia = async () => {
+    setIsExporting(true);
+    setExportProgress(0);
+    try {
+      const response = await fetch('http://localhost:5000/api/export/media');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `beth_media_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        notify('Media exported successfully', 'success');
+      }
+    } catch (error) {
+      notify('Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+    }
+  };
+
+  const handleExportFull = async () => {
+    setIsExporting(true);
+    setExportProgress(0);
+    try {
+      const response = await fetch('http://localhost:5000/api/export/all');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `beth_backup_${new Date().toISOString().split('T')[0]}.zip`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        notify('Full backup created successfully', 'success');
+      }
+    } catch (error) {
+      notify('Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+    }
+  };
+
+  const handleImportSongs = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const data = JSON.parse(event.target.result);
-            importLibrary(data);
-          } catch (err) {
-            notify(language === 'id' ? 'Format file tidak valid' : 'Invalid file format', 'error');
+        setIsImporting(true);
+        setImportProgress(0);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch('http://localhost:5000/api/import/songs', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            notify(`Songs imported: ${result.imported} new, ${result.duplicates} duplicates`, 'success');
+          } else {
+            notify('Import failed', 'error');
           }
-        };
-        reader.readAsText(file);
+        } catch (error) {
+          notify('Import failed', 'error');
+        } finally {
+          setIsImporting(false);
+          setImportProgress(0);
+        }
+      }
+    };
+    input.click();
+  };
+
+  const handleImportPresentations = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setIsImporting(true);
+        setImportProgress(0);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch('http://localhost:5000/api/import/presentations', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            notify(`Presentations imported: ${result.imported} new, ${result.duplicates} duplicates`, 'success');
+          } else {
+            notify('Import failed', 'error');
+          }
+        } catch (error) {
+          notify('Import failed', 'error');
+        } finally {
+          setIsImporting(false);
+          setImportProgress(0);
+        }
+      }
+    };
+    input.click();
+  };
+
+  const handleImportMedia = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setIsImporting(true);
+        setImportProgress(0);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch('http://localhost:5000/api/import/media', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            notify(`Media imported: ${result.imported} new, ${result.duplicates} duplicates`, 'success');
+          } else {
+            notify('Import failed', 'error');
+          }
+        } catch (error) {
+          notify('Import failed', 'error');
+        } finally {
+          setIsImporting(false);
+          setImportProgress(0);
+        }
+      }
+    };
+    input.click();
+  };
+
+  const handleImportFull = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setIsImporting(true);
+        setImportProgress(0);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch('http://localhost:5000/api/import/all', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            notify(`Full backup restored: ${result.songs} songs, ${result.presentations} presentations, ${result.media} media files`, 'success');
+          } else {
+            notify('Import failed', 'error');
+          }
+        } catch (error) {
+          notify('Import failed', 'error');
+        } finally {
+          setIsImporting(false);
+          setImportProgress(0);
+        }
       }
     };
     input.click();
@@ -148,18 +363,53 @@ const SettingsModal = ({ isOpen, onClose }) => {
     );
   };
 
-  const DataManagementCard = ({ title, onExport, onImport, isLarge = false }) => (
+  const DataManagementCard = ({ title, onExport, onImport, isLarge = false, isExporting, isImporting }) => (
     <div className={`bg-white border border-[#E2E2E6] rounded-xl p-6 ${isLarge ? 'md:p-8' : 'p-6'} space-y-5 hover:border-[#80000030] transition-all shadow-sm`}>
        <div className="space-y-1">
           <h4 className={`font-black text-[#2D2D2E] ${isLarge ? 'text-[16px]' : 'text-[14px]'}`}>{title}</h4>
-          {isLarge && <p className="text-[11px] text-[#8E8E93] font-medium leading-relaxed">Cadangan lengkap semua lagu, presentasi, dan media (termasuk file).</p>}
+          {isLarge && <p className="text-[11px] text-[#8E8E93] font-medium leading-relaxed">Complete backup of all songs, presentations, and media (including files).</p>}
        </div>
+       
+       {/* Progress Bar */}
+       {(isExporting || isImporting) && (
+         <div className="w-full bg-[#F1F1F3] rounded-full h-2 overflow-hidden">
+           <div 
+             className="bg-[#800000] h-full transition-all duration-300"
+             style={{ width: `${exportProgress || importProgress}%` }}
+           />
+         </div>
+       )}
+       
        <div className="flex gap-2.5">
-          <button onClick={onExport} className="flex-1 bg-[#F8F9FA] text-[#2D2D2E] border border-[#E2E2E6] h-10 rounded-xl text-[12px] font-black flex items-center justify-center gap-2 hover:bg-[#800000] hover:text-white hover:border-[#800000] transition-all shadow-sm">
-             <Download size={15} /> {t.export}
+          <button 
+            onClick={onExport} 
+            disabled={isExporting || isImporting}
+            className={`flex-1 h-10 rounded-xl text-[12px] font-black flex items-center justify-center gap-2 transition-all shadow-sm ${
+              isExporting || isImporting 
+                ? 'bg-[#F1F1F3] text-[#AEAEB2] cursor-not-allowed' 
+                : 'bg-[#F8F9FA] text-[#2D2D2E] border border-[#E2E2E6] hover:bg-[#800000] hover:text-white hover:border-[#800000]'
+            }`}
+          >
+             {isExporting ? (
+               <><span className="animate-pulse">Exporting...</span></>
+             ) : (
+               <><Download size={15} /> {t.export}</>
+             )}
           </button>
-          <button onClick={onImport} className="flex-1 bg-[#F8F9FA] text-[#2D2D2E] border border-[#E2E2E6] h-10 rounded-xl text-[12px] font-black flex items-center justify-center gap-2 hover:bg-[#800000] hover:text-white hover:border-[#800000] transition-all shadow-sm">
-             <Upload size={15} /> {t.import}
+          <button 
+            onClick={onImport} 
+            disabled={isExporting || isImporting}
+            className={`flex-1 h-10 rounded-xl text-[12px] font-black flex items-center justify-center gap-2 transition-all shadow-sm ${
+              isExporting || isImporting 
+                ? 'bg-[#F1F1F3] text-[#AEAEB2] cursor-not-allowed' 
+                : 'bg-[#F8F9FA] text-[#2D2D2E] border border-[#E2E2E6] hover:bg-[#800000] hover:text-white hover:border-[#800000]'
+            }`}
+          >
+             {isImporting ? (
+               <><span className="animate-pulse">Importing...</span></>
+             ) : (
+               <><Upload size={15} /> {t.import}</>
+             )}
           </button>
        </div>
     </div>
@@ -237,16 +487,43 @@ const SettingsModal = ({ isOpen, onClose }) => {
             
             <div className="space-y-4">
                <DataManagementCard 
-                 title="Cadangan Lengkap" 
+                 title="Full Backup" 
                  isLarge={true} 
-                 onExport={exportLibrary} 
-                 onImport={handleImportLagu} 
+                 onExport={handleExportFull} 
+                 onImport={handleImportFull}
+                 isExporting={isExporting}
+                 isImporting={isImporting}
                />
 
                <div className="grid grid-cols-1 gap-4">
-                  <DataManagementCard title="Lagu" onExport={exportLibrary} onImport={handleImportLagu} />
-                  <DataManagementCard title="Presentasi" onExport={() => {}} onImport={() => {}} />
-                  <DataManagementCard title="Media" onExport={() => {}} onImport={() => {}} />
+                  <DataManagementCard 
+                    title="Songs" 
+                    onExport={handleExportSongs} 
+                    onImport={handleImportSongs}
+                    isExporting={isExporting}
+                    isImporting={isImporting}
+                  />
+                  <DataManagementCard 
+                    title="Presentations" 
+                    onExport={handleExportPresentations} 
+                    onImport={handleImportPresentations}
+                    isExporting={isExporting}
+                    isImporting={isImporting}
+                  />
+                  <DataManagementCard 
+                    title="Media" 
+                    onExport={handleExportMedia} 
+                    onImport={handleImportMedia}
+                    isExporting={isExporting}
+                    isImporting={isImporting}
+                  />
+               </div>
+               
+               <div className="bg-[#F8F9FA] rounded-xl p-4 border border-[#E2E2E6]">
+                 <p className="text-[11px] text-[#8E8E93] font-medium leading-relaxed">
+                   <strong>Important:</strong> Full backup includes all media files. Individual module backups only include metadata. 
+                   Duplicates are automatically detected and skipped during import.
+                 </p>
                </div>
             </div>
           </section>

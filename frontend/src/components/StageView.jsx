@@ -1,100 +1,122 @@
 import React, { useState } from 'react';
-import { Send, Trash2, X, Info, Zap, MessageSquare } from 'lucide-react';
+import { 
+  Send, MessageSquare, Zap, Clock, 
+  Trash2, Bell, AlertTriangle, Info
+} from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
-const StageView = () => {
-  const { sendManualToLive, notify } = useProject();
-  const [message, setMessage] = useState('');
-  const maxChars = 200;
+const PRESET_MESSAGES = [
+  "Lagu Berikutnya", "Waktu Doa", "Persembahan", 
+  "Istirahat", "Pengumuman", "Kesaksian", 
+  "Persiapan Ibadah", "Microphone On"
+];
 
-  const quickMessages = [
-    "Lagu Berikut...", "Waktu Doa", "Persembahan", "Istirahat", 
-    "Pengumuman", "Waktu Penye...", "Kesaksian"
-  ];
+const StageView = () => {
+  const { remotePin, socketRef, liveState, flowItems, countdown } = useProject();
+  const [customMsg, setCustomMsg] = useState('');
+  const [activeMsg, setActiveMsg] = useState('');
+
+  // Find next slide from flowItems or context
+  const getNextSlide = () => {
+     // Simplifying for stage view: just get next from flow
+     if (!liveState.songId) return "No item live";
+     return "Ready in Flow"; 
+  };
+
+  const sendMessage = (msg) => {
+    if (!remotePin) return;
+    
+    const payload = {
+      pin: remotePin,
+      currentSlide: liveState,
+      nextSlide: null, // Logic to get next slide can be expanded
+      message: msg,
+      countdown: countdown.isActive ? countdown : null
+    };
+
+    if (socketRef.current) {
+      socketRef.current.emit('stage-message', payload);
+    }
+    
+    setActiveMsg(msg);
+    if (msg) {
+        setTimeout(() => setActiveMsg(''), 10000);
+    }
+  };
 
   return (
-    <div className="flex-1 flex flex-col bg-white text-[#2D2D2E] font-['Outfit'] h-full overflow-hidden">
-      
-      {/* Header Info - More compact */}
-      <div className="px-10 pt-8 pb-4">
-        <h1 className="text-[24px] font-[950] text-[#800000] uppercase tracking-tight">Kontrol Tampilan Panggung</h1>
-        <p className="text-[12px] font-bold text-[#AEAEB2] mt-0.5">Kirim pesan khusus ke pelayan di panggung</p>
+    <div className="flex-1 flex flex-col bg-[#F8F9FA] overflow-hidden font-['Outfit']">
+      {/* Header */}
+      <div className="h-[64px] px-8 flex items-center justify-between bg-white border-b border-[#E2E2E6] shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-[#1D1D1F] rounded-xl flex items-center justify-center shadow-lg shadow-black/10">
+            <Bell size={20} className="text-white" />
+          </div>
+          <h2 className="text-[14px] font-[950] tracking-tight text-[#1D1D1F] uppercase">STAGE MONITOR CONTROL</h2>
+        </div>
+        
+        {activeMsg && (
+          <div className="flex items-center gap-2 bg-[#800000] text-white px-4 py-2 rounded-xl animate-pulse">
+            <Info size={14} />
+            <span className="text-[10px] font-black uppercase">Active: {activeMsg}</span>
+          </div>
+        )}
       </div>
 
-      <div className="px-10 flex-1 flex flex-col overflow-hidden pb-8">
-         
-         {/* Custom Text Message Section */}
-         <div className="max-w-4xl flex flex-col h-1/2 min-h-[300px]">
-            <span className="text-[10px] font-black text-[#AEAEB2] uppercase tracking-[0.2em] mb-2 block">PESAN TEKS KHUSUS</span>
-            
-            <div className="relative group flex-1">
-               <textarea 
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value.slice(0, maxChars))}
-                  placeholder="Ketik pesan disini..."
-                  className="w-full h-full bg-[#F8F9FA] border-2 border-[#E2E2E6] rounded-xl p-5 text-[16px] font-bold focus:outline-none focus:border-[#80000020] focus:ring-4 focus:ring-[#80000005] transition-all resize-none placeholder:text-[#AEAEB2]"
-               />
-               <div className="absolute bottom-4 right-6 text-[10px] font-black text-[#AEAEB2] uppercase tracking-tighter">
-                  {message.length} / {maxChars}
-               </div>
-            </div>
+      <div className="flex-1 p-8 overflow-y-auto custom-scrollbar flex flex-col gap-8">
+        {/* Custom Message input */}
+        <div className="bg-white rounded-[32px] p-10 border border-[#E2E2E6] shadow-sm">
+          <div className="flex items-center gap-2 mb-6 opacity-40">
+            <MessageSquare size={18} />
+            <span className="text-[11px] font-black uppercase tracking-widest">Stage Message</span>
+          </div>
+          
+          <div className="flex gap-4">
+            <input 
+              value={customMsg}
+              onChange={e => setCustomMsg(e.target.value)}
+              placeholder="Ketik pesan untuk dikirim ke panggung..."
+              className="flex-1 bg-[#F8F9FA] border border-[#E2E2E6] rounded-2xl px-6 py-4 text-[15px] font-[600] outline-none focus:border-[#80000040]"
+              onKeyDown={e => e.key === 'Enter' && sendMessage(customMsg)}
+            />
+            <button 
+              onClick={() => { sendMessage(customMsg); setCustomMsg(''); }}
+              className="px-8 bg-[#800000] text-white rounded-2xl text-[12px] font-black flex items-center gap-2 shadow-xl shadow-[#80000020] hover:scale-105 transition-all"
+            >
+              <Send size={16} />
+              KIRIM
+            </button>
+          </div>
+        </div>
 
-            <div className="flex gap-3 mt-4">
-               <button 
-                  onClick={() => {
-                    if (!message.trim()) return;
-                    sendManualToLive({ 
-                      content: message, 
-                      label: 'STAGE MESSAGE',
-                      songId: 'stage-' + Date.now()
-                    });
-                    notify('Pesan terkirim ke Tampilan Panggung', 'success');
-                  }}
-                  className="flex-1 h-12 bg-[#800000] text-white rounded-xl flex items-center justify-center gap-3 font-black text-[13px] uppercase tracking-[0.1em] hover:bg-[#A00000] hover:shadow-lg transition-all active:scale-[0.98]"
-               >
-                  <Send size={16} strokeWidth={2.5} />
-                  Kirim ke Tampilan Panggung
-               </button>
-               <button 
-                  onClick={() => setMessage('')}
-                  className="px-6 h-12 border-2 border-[#E2E2E6] text-[#AEAEB2] rounded-xl flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-tighter hover:bg-[#F8F9FA] hover:text-[#2D2D2E] hover:border-[#2D2D2E] transition-all"
-               >
-                  <X size={16} />
-                  Bersihkan
-               </button>
-            </div>
-         </div>
-
-         {/* Status Banner - Smaller */}
-         <div className="mt-4 p-3 bg-[#80000010] border border-[#80000015] rounded-xl flex items-center gap-3 text-[#800000] max-w-4xl shrink-0">
-            <Info size={16} />
-            <p className="text-[11px] font-bold">
-               Tampilan panggung belum terhubung. Mulai sesi tampilan untuk mengirim pesan.
-            </p>
-         </div>
-
-         {/* Quick Messages Section - Integrated better */}
-         <div className="max-w-4xl mt-6 flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-3 mb-3 shrink-0">
-               <Zap size={12} className="text-[#800000]" />
-               <span className="text-[10px] font-black text-[#AEAEB2] uppercase tracking-[0.2em]">PESAN CEPAT</span>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 h-full content-start overflow-y-auto custom-scrollbar">
-               {quickMessages.map((msg, idx) => (
-                  <button 
-                     key={idx}
-                     onClick={() => setMessage(msg)}
-                     className="h-10 px-2 border border-[#E2E2E6] bg-[#F8F9FA]/50 text-[#8E8E93] rounded-lg text-[9px] font-black uppercase tracking-tighter hover:border-[#80000040] hover:bg-white hover:text-[#800000] hover:shadow-sm transition-all text-center leading-tight active:scale-95"
-                  >
-                     {msg}
-                  </button>
-               ))}
-            </div>
-         </div>
-
+        {/* Quick Presets */}
+        <div className="space-y-4">
+          <h3 className="text-[11px] font-black text-[#8E8E93] tracking-[0.2em] uppercase px-2">PESAN CEPAT (PRESET)</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {PRESET_MESSAGES.map(msg => (
+              <button 
+                key={msg}
+                onClick={() => sendMessage(msg)}
+                className="p-6 bg-white border border-[#E2E2E6] rounded-3xl text-[12px] font-black text-[#1D1D1F] hover:border-[#80000040] hover:bg-[#80000005] hover:text-[#800000] transition-all text-center flex flex-col items-center gap-4 group"
+              >
+                <div className="w-10 h-10 bg-[#F1F1F3] rounded-xl flex items-center justify-center group-hover:bg-[#800000] transition-colors">
+                  <Zap size={18} className="text-[#AEAEB2] group-hover:text-white" />
+                </div>
+                {msg.toUpperCase()}
+              </button>
+            ))}
+            <button 
+              onClick={() => sendMessage('')}
+              className="p-6 bg-white border border-[#E2E2E6] rounded-3xl text-[12px] font-black text-red-500 hover:bg-red-50 transition-all text-center flex flex-col items-center gap-4"
+            >
+              <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                 <Trash2 size={18} />
+              </div>
+              BERSIHKAN PANEL
+            </button>
+          </div>
+        </div>
       </div>
-
     </div>
   );
 };

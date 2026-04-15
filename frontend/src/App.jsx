@@ -4,7 +4,8 @@ import { ProjectProvider, useProject } from './context/ProjectContext';
 import { Clock } from 'lucide-react';
 import PresentationPage from './pages/PresentationPage';
 import DisplayClientPage from './pages/DisplayClientPage';
-import RemotePage from './pages/RemotePage';
+import RemoteControlPage from './pages/RemoteControlPage';
+import StageDisplayPage from './pages/StageDisplayPage';
 import OBSPage from './pages/OBSPage';
 
 const Projector = () => (
@@ -36,7 +37,6 @@ const GlobalNotification = () => {
 
 const SkeletonLoader = () => (
   <div className="h-screen w-full bg-[#F8F9FA] flex flex-col font-['Outfit']">
-    {/* Skeleton Header */}
     <div className="h-16 bg-white border-b border-[#E2E2E6] flex items-center justify-between px-6 shrink-0">
       <div className="h-6 w-48 bg-[#F1F1F3] rounded animate-pulse"></div>
       <div className="h-8 w-64 bg-[#F1F1F3] rounded animate-pulse"></div>
@@ -65,7 +65,8 @@ const AppRouter = () => {
         <Route path="/" element={loading ? <SkeletonLoader /> : <PresentationPage />} />
         <Route path="/songs" element={loading ? <SkeletonLoader /> : <PresentationPage />} />
         <Route path="/display/:pin" element={<DisplayClientPage />} />
-        <Route path="/remote/:pin" element={<RemotePage />} />
+        <Route path="/remote" element={<RemoteControlPage />} />
+        <Route path="/stage" element={<StageDisplayPage />} />
         <Route path="/obs/:pin" element={<OBSPage />} />
         <Route path="/projector" element={<Projector />} />
       </Routes>

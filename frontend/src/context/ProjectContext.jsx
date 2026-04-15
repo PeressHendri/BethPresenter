@@ -104,6 +104,32 @@ export const ProjectProvider = ({ children }) => {
   const [remotePin, setRemotePin] = useState(localStorage.getItem('beth_remote_pin') || '');
   const [remoteQR, setRemoteQR] = useState('');
   const [isRemoteActive, setIsRemoteActive] = useState(false);
+  
+  // Countdown State (Modul 6)
+  const [countdown, setCountdownState] = useState({
+    isActive: false,
+    isRunning: false,
+    remainingSeconds: 300,
+    title: 'The service is about to start',
+    message: 'Silakan duduk di tempat Anda',
+    type: 'duration', // 'duration' | 'target'
+    targetTime: '09:00',
+    mode: 'both' // 'both' | 'output' | 'stage'
+  });
+
+  const setCountdown = (update) => {
+    setCountdownState(prev => {
+      const newState = typeof update === 'function' ? update(prev) : { ...prev, ...update };
+      
+      // Broadcast to socket if running
+      if (socketRef.current && remotePin) {
+        socketRef.current.emit('sync-countdown', { pin: remotePin, countdown: newState });
+      }
+      
+      return newState;
+    });
+  };
+
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -261,13 +287,15 @@ export const ProjectProvider = ({ children }) => {
         type: 'SET_LIVE_SLIDE'
       };
 
-      // Broadcast to local and remote
-      if (outputWindow && !outputWindow.closed) {
-        outputWindow.postMessage({ type: 'SET_LIVE_SLIDE', payload: envelope }, '*');
-      }
+      // Broadcast to local and remote ONLY when not in rehearsal mode
+      if (!isRehearsal) {
+        if (outputWindow && !outputWindow.closed) {
+          outputWindow.postMessage({ type: 'SET_LIVE_SLIDE', payload: envelope }, '*');
+        }
 
-      if (socketRef.current && remotePin) {
-        socketRef.current.emit('broadcast-slide', { pin: remotePin, slide: envelope });
+        if (socketRef.current && remotePin) {
+          socketRef.current.emit('broadcast-slide', { pin: remotePin, slide: envelope });
+        }
       }
 
       return newState;
@@ -622,9 +650,15 @@ export const ProjectProvider = ({ children }) => {
     setGlobalBackground,
     selectedItemIndex, setSelectedItemIndex,
     liveState,
+    countdown, setCountdown,
     // Output/Live functions
     setLiveSlide,
     sendManualToLive,
+    broadcastVideoControl: (control) => {
+      if (socketRef.current && remotePin) {
+        socketRef.current.emit('sync-video-control', { pin: remotePin, ...control });
+      }
+    },
     sendBibleToLive,
     sendMediaToLive,
     sendCountdownToLive,
@@ -633,6 +667,48 @@ export const ProjectProvider = ({ children }) => {
     loading,
     remotePin, remoteQR, createRemoteSession,
     isRemoteActive, setIsRemoteActive,
+    // Live Formatting State (MODUL 7)
+    globalFormat: {
+      fontFamily: 'Poppins',
+      fontSize: 82,
+      isBold: true,
+      isUppercase: false,
+      spacing: 0,
+      lineHeight: 1.15,
+      textColor: '#FFFFFF',
+      bgOpacity: 0,
+      shadowType: 'Soft',
+      alignment: 'center'
+    },
+    setGlobalFormat: (newFormat) => {
+      // Update global format and broadcast to all displays
+      const updatedFormat = { ...globalFormat, ...newFormat };
+      
+      // Update local state
+      Object.assign(globalFormat, updatedFormat);
+      
+      // Send to output window
+      if (outputWindow && !outputWindow.closed) {
+        outputWindow.postMessage({
+          type: 'UPDATE_GLOBAL_FORMAT',
+          payload: updatedFormat
+        }, '*');
+      }
+      
+      // Send to remote displays
+      if (socketRef.current && remotePin) {
+        socketRef.current.emit('sync-global-format', {
+          pin: remotePin,
+          format: updatedFormat
+        });
+      }
+      
+      // Update live state format
+      setLiveState(prev => ({ ...prev, format: updatedFormat }));
+    },
+    // Add these to the value object below:
+    globalFormat,
+    setGlobalFormat,
     socket: socketRef.current
   };
 

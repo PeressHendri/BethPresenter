@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Monitor, X, ChevronDown, Check, Layout, 
   Clapperboard, Layers, Tv, Copy, Globe, 
-  Video, Smartphone, AlertCircle, Play
+  Video, Smartphone, AlertCircle, Play, QrCode, RefreshCcw, Users, Wifi
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
 const MultiDisplayModal = ({ isOpen, onClose }) => {
-  const { language, remotePin, isRemoteActive, setIsRemoteActive, createRemoteSession } = useProject();
+  const { language, remotePin, isRemoteActive, setIsRemoteActive, createRemoteSession, socket } = useProject();
   const [copied, setCopied] = useState(null);
+  const [displayPin, setDisplayPin] = useState('');
+  const [activeClients, setActiveClients] = useState([]);
+  const [qrUrl, setQrUrl] = useState('');
+  const [isSessionActive, setIsSessionActive] = useState(false);
 
   // OBS Settings States
   const [obsLayout, setObsLayout] = useState('Lower Third');
@@ -20,11 +24,73 @@ const MultiDisplayModal = ({ isOpen, onClose }) => {
 
   const [openDropdown, setOpenDropdown] = useState(null);
 
+  // Generate display PIN and QR code
+  const generateDisplayPin = () => {
+    const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+    setDisplayPin(newPin);
+    const url = `${window.location.origin}/display?pin=${newPin}`;
+    setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`);
+    setIsSessionActive(true);
+    
+    // Start session via socket
+    if (socket) {
+      socket.emit('start-display-session', { pin: newPin });
+    }
+  };
+
+  // Stop display session
+  const stopDisplaySession = () => {
+    setIsSessionActive(false);
+    setActiveClients([]);
+    setDisplayPin('');
+    setQrUrl('');
+    
+    if (socket) {
+      socket.emit('stop-display-session', { pin: displayPin });
+    }
+  };
+
+  // Listen for client connections
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleClientJoin = (data) => {
+      if (data.pin === displayPin) {
+        setActiveClients(prev => [...prev, {
+          id: data.clientId,
+          type: data.clientType || 'unknown',
+          joinedAt: new Date().toISOString()
+        }]);
+      }
+    };
+
+    const handleClientLeave = (data) => {
+      if (data.pin === displayPin) {
+        setActiveClients(prev => prev.filter(client => client.id !== data.clientId));
+      }
+    };
+
+    socket.on('display-client-joined', handleClientJoin);
+    socket.on('display-client-left', handleClientLeave);
+
+    return () => {
+      socket.off('display-client-joined', handleClientJoin);
+      socket.off('display-client-left', handleClientLeave);
+    };
+  }, [socket, displayPin]);
+
+  // Generate PIN on modal open if not exists
+  useEffect(() => {
+    if (isOpen && !displayPin) {
+      generateDisplayPin();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const baseUrl = window.location.origin;
-  const displayUrl = `${baseUrl}/display/${remotePin}`;
-  const obsUrl = `${baseUrl}/obs/${remotePin}?layout=${obsLayout.toLowerCase().replace(' ', '-')}&anim=${obsAnim.toLowerCase()}`;
+  const displayUrl = `${baseUrl}/display?pin=${displayPin}`;
+  const obsUrl = `${baseUrl}/obs/${displayPin}?layout=${obsLayout.toLowerCase().replace(' ', '-')}&anim=${obsAnim.toLowerCase()}`;
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -97,11 +163,11 @@ const MultiDisplayModal = ({ isOpen, onClose }) => {
         <div className="px-8 py-6 flex items-center justify-between border-b border-[#F1F1F3] bg-white">
            <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-[#800000] rounded-2xl flex items-center justify-center shadow-lg shadow-[#80000020]">
-                 <Tv size={22} className="text-white" />
+                 <Monitor size={22} className="text-white" />
               </div>
               <div>
-                 <h2 className="text-[18px] font-black text-[#2D2D2E] tracking-tight">{t.title}</h2>
-                 <p className="text-[11px] text-[#AEAEB2] font-medium">{t.desc}</p>
+                 <h2 className="text-[18px] font-black text-[#2D2D2E] tracking-tight">Multi-Display Sync</h2>
+                 <p className="text-[11px] text-[#AEAEB2] font-medium">Connect up to 3 extra displays via Wi-Fi</p>
               </div>
            </div>
            <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center text-[#AEAEB2] hover:bg-[#F8F9FA] hover:text-[#800000] transition-all">
@@ -110,19 +176,45 @@ const MultiDisplayModal = ({ isOpen, onClose }) => {
         </div>
 
         <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
-           {/* Section 1: PIN & URL */}
+           {/* Section 1: PIN & QR Code */}
            <div className="text-center space-y-6">
-              <p className="text-[12px] font-bold text-[#8E8E93] px-10">{t.pinDesc}</p>
+              <div className="flex items-center justify-center gap-3 text-[#800000]">
+                 <Wifi size={20} />
+                 <p className="text-[12px] font-bold">Connect devices on the same Wi-Fi network</p>
+              </div>
+              
+              {/* QR Code */}
+              <div className="flex justify-center">
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-[#800000] blur-2xl opacity-10 group-hover:opacity-20 transition-opacity rounded-full" />
+                  <div className="relative w-48 h-48 bg-white p-4 rounded-3xl shadow-2xl border border-[#F1F1F3] flex items-center justify-center overflow-hidden">
+                    {qrUrl ? (
+                      <img src={qrUrl} alt="Display QR Code" className="w-full h-full object-contain" />
+                    ) : (
+                      <QrCode size={48} className="text-[#E2E2E6] animate-pulse" />
+                    )}
+                  </div>
+                </div>
+              </div>
               
               <div className="space-y-1">
-                 <p className="text-[11px] font-black text-[#AEAEB2] tracking-[0.2em]">{t.pinTitle}</p>
-                 <h1 className="text-[56px] font-black text-[#800000] tracking-[0.15em] font-['Outfit'] leading-tight">
-                    {remotePin ? remotePin.match(/.{1,3}/g).join(' ') : '------'}
-                 </h1>
+                 <p className="text-[11px] font-black text-[#AEAEB2] tracking-[0.2em]">DISPLAY PIN</p>
+                 <div className="flex items-center justify-center gap-3">
+                   <h1 className="text-[48px] font-black text-[#800000] tracking-[0.15em] font-['Outfit'] leading-tight">
+                      {displayPin ? displayPin.match(/.{1,3}/g).join(' ') : '------'}
+                   </h1>
+                   <button 
+                     onClick={generateDisplayPin}
+                     className="p-2 text-[#800000] hover:bg-white rounded-lg transition-all"
+                     title="Generate new PIN"
+                   >
+                     <RefreshCcw size={20} />
+                   </button>
+                 </div>
               </div>
 
               <div className="space-y-4">
-                 <p className="text-[12px] text-[#AEAEB2] font-medium">{t.manualLabel}</p>
+                 <p className="text-[12px] text-[#AEAEB2] font-medium">Or open this URL on any device:</p>
                  <div className="bg-white border border-[#E2E2E6] rounded-2xl p-2.5 flex items-center gap-3 shadow-sm">
                     <div className="flex-1 px-4 text-[12px] text-[#2D2D2E] font-mono truncate opacity-60">{displayUrl}</div>
                     <button 
@@ -130,10 +222,58 @@ const MultiDisplayModal = ({ isOpen, onClose }) => {
                       className={`h-11 px-6 rounded-xl flex items-center gap-2 text-[12px] font-black transition-all ${copied === 'display' ? 'bg-[#800000] text-white' : 'bg-[#F8F9FA] text-[#2D2D2E] border border-[#E2E2E6] hover:border-[#800000] hover:text-[#800000]'}`}
                     >
                        {copied === 'display' ? <Check size={16} /> : <Copy size={16} />}
-                       {copied === 'display' ? 'Berhasil' : t.copy}
+                       {copied === 'display' ? 'Copied!' : 'Copy'}
                     </button>
                  </div>
               </div>
+           </div>
+
+           {/* Section 2: Active Clients */}
+           <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <Users size={18} className="text-[#800000]" />
+                    <h3 className="text-[14px] font-black text-[#2D2D2E]">Connected Displays ({activeClients.length}/3)</h3>
+                 </div>
+                 <div className={`px-3 py-1 rounded-full text-[10px] font-black border ${
+                   isSessionActive ? 'border-green-500/30 text-green-500' : 'border-red-500/30 text-red-500'
+                 }`}>
+                    {isSessionActive ? 'ACTIVE' : 'INACTIVE'}
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                 {[1, 2, 3].map(index => {
+                   const client = activeClients[index - 1];
+                   return (
+                     <div key={index} className={`bg-white border-2 rounded-2xl p-4 text-center transition-all ${
+                       client ? 'border-green-500/30 bg-green-50' : 'border-[#E2E2E6]'
+                     }`}>
+                       <div className="flex justify-center mb-2">
+                         {client ? (
+                           <Monitor size={32} className="text-green-500" />
+                         ) : (
+                           <Monitor size={32} className="text-[#E2E2E6]" />
+                         )}
+                       </div>
+                       <p className="text-[11px] font-black">
+                         {client ? `Display ${index}` : `Empty ${index}`}
+                       </p>
+                       {client && (
+                         <p className="text-[9px] text-[#AEAEB2] mt-1">
+                           {client.type || 'Unknown'}
+                         </p>
+                       )}
+                     </div>
+                   );
+                 })}
+              </div>
+
+              {activeClients.length === 0 && (
+                 <p className="text-center text-[#AEAEB2] text-[12px] font-medium py-4">
+                    No displays connected yet. Scan the QR code or open the URL on other devices.
+                 </p>
+              )}
            </div>
 
            {/* Section 2: OBS Settings */}
@@ -172,28 +312,28 @@ const MultiDisplayModal = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         <div className="p-8 bg-white border-t border-[#F1F1F3] flex items-center justify-between">
-           {isRemoteActive ? (
+           {isSessionActive ? (
               <button 
-                onClick={() => setIsRemoteActive(false)}
+                onClick={stopDisplaySession}
                 className="flex items-center gap-3 bg-[#80000005] text-[#800000] border border-[#80000015] px-6 py-3.5 rounded-2xl font-black text-[13px] hover:bg-[#800000] hover:text-white transition-all group"
               >
                  <div className="w-4 h-4 rounded-md bg-[#800000] group-hover:bg-white"></div>
-                 {t.stopBtn}
+                 Stop Session
               </button>
            ) : (
               <button 
-                onClick={async () => { await createRemoteSession(); setIsRemoteActive(true); }}
+                onClick={generateDisplayPin}
                 className="flex items-center gap-3 bg-[#800000] text-white px-8 py-3.5 rounded-2xl font-black text-[13px] hover:bg-[#5C0000] transition-all shadow-lg"
               >
                  <Play size={18} fill="white" />
-                 {t.startBtn}
+                 Start Session
               </button>
            )}
 
            <div className="flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full ${isRemoteActive ? 'bg-[#800000] animate-pulse' : 'bg-[#AEAEB2]'}`}></div>
-              <span className={`text-[11px] font-black tracking-widest uppercase transition-colors ${isRemoteActive ? 'text-[#800000]' : 'text-[#AEAEB2]'}`}>
-                 {isRemoteActive ? t.active : t.inactive}
+              <div className={`w-2 h-2 rounded-full ${isSessionActive ? 'bg-[#800000] animate-pulse' : 'bg-[#AEAEB2]'}`}></div>
+              <span className={`text-[11px] font-black tracking-widest uppercase transition-colors ${isSessionActive ? 'text-[#800000]' : 'text-[#AEAEB2]'}`}>
+                 {isSessionActive ? 'SESSION ACTIVE' : 'SESSION INACTIVE'}
               </span>
            </div>
         </div>
