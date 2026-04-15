@@ -89,6 +89,47 @@ export const ProjectProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Live Formatting State (MODUL 7)
+  const [globalFormat, setGlobalFormatState] = useState({
+    fontFamily: 'Poppins',
+    fontSize: 82,
+    isBold: true,
+    isUppercase: false,
+    spacing: 0,
+    lineHeight: 1.15,
+    textColor: '#FFFFFF',
+    bgOpacity: 0,
+    shadowType: 'Soft',
+    alignment: 'center'
+  });
+
+  const setGlobalFormat = (newFormat) => {
+    // Update global format and broadcast to all displays
+    const updatedFormat = { ...globalFormat, ...newFormat };
+    
+    // Update local state
+    setGlobalFormatState(updatedFormat);
+    
+    // Send to output window
+    if (outputWindow && !outputWindow.closed) {
+      outputWindow.postMessage({
+        type: 'UPDATE_GLOBAL_FORMAT',
+        payload: updatedFormat
+      }, '*');
+    }
+    
+    // Send to remote displays
+    if (socketRef.current && remotePin) {
+      socketRef.current.emit('sync-global-format', {
+        pin: remotePin,
+        format: updatedFormat
+      });
+    }
+    
+    // Update live state format
+    setLiveState(prev => ({ ...prev, format: updatedFormat }));
+  };
+
   // Persist Projects
   useEffect(() => {
     localStorage.setItem('beth_projects', JSON.stringify(projects));
@@ -667,6 +708,7 @@ export const ProjectProvider = ({ children }) => {
     loading,
     remotePin, remoteQR, createRemoteSession,
     isRemoteActive, setIsRemoteActive,
+<<<<<<< Updated upstream
     // Live Formatting State (MODUL 7)
     globalFormat: {
       fontFamily: 'Poppins',
@@ -709,6 +751,9 @@ export const ProjectProvider = ({ children }) => {
     globalFormat,
     setGlobalFormat,
     socket: socketRef.current
+=======
+    globalFormat, setGlobalFormat
+>>>>>>> Stashed changes
   };
 
   return (
