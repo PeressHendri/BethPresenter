@@ -706,7 +706,6 @@ export const ProjectProvider = ({ children }) => {
       // Update live state format
       setLiveState(prev => ({ ...prev, format: updatedFormat }));
     },
-    // Add these to the value object below:
     globalFormat,
     setGlobalFormat,
     socket: socketRef.current

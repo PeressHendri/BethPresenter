@@ -14,7 +14,7 @@ const FONT_FAMILIES = ['Poppins', 'Arial', 'Inter', 'Outfit', 'Roboto', 'Open Sa
 const FONT_SIZES = [72, 82, 92, 102, 112, 122];
 
 const SongEditorModal = ({ isOpen, onClose, song }) => {
-  const { saveSong, language, liveState, sendManualToLive, globalFormat, setGlobalFormat } = useProject();
+  const { addSong, updateSong, language, liveState, sendManualToLive, globalFormat, setGlobalFormat } = useProject();
 
   // Metadata State
   const [title, setTitle] = useState('');
@@ -94,7 +94,7 @@ const SongEditorModal = ({ isOpen, onClose, song }) => {
       title, author, ccli, tags, slides,
       format
     };
-    saveSong(newSong);
+    song && song.id ? updateSong(song.id, newSong) : addSong(newSong);
     onClose();
   };
 

@@ -399,7 +399,6 @@ const BibleView = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
