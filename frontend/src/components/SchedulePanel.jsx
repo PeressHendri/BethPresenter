@@ -3,7 +3,7 @@ import { motion, Reorder } from 'framer-motion';
 import { 
   Music, Video, Image as ImageIcon, FileText, 
   Trash2, GripVertical, Plus, Settings, 
-  Square, Presentation, Upload, File, Type
+  Square, Upload, Type, File, Presentation
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
@@ -111,17 +111,17 @@ const SchedulePanel = ({
             addToSchedule(powerPointItem);
             
             // Show success notification
-            const { notify } = useProject();
-            notify(`PowerPoint imported: ${result.slideCount} slides`, 'success');
+
+            alert(`PowerPoint imported: ${result.slideCount} slides`);
           } else {
             const error = await response.json();
-            const { notify } = useProject();
-            notify(`Import failed: ${error.message}`, 'error');
+
+            alert(`Import failed: ${error.message}`);
           }
         } catch (error) {
           console.error('PowerPoint import error:', error);
-          const { notify } = useProject();
-          notify('PowerPoint import failed', 'error');
+
+          alert('PowerPoint import failed');
         } finally {
           setIsImportingPowerPoint(false);
         }
@@ -139,8 +139,8 @@ const SchedulePanel = ({
 
   const handleSaveCustomSlide = () => {
     if (!customSlideTitle.trim() && !customSlideContent.trim()) {
-      const { notify } = useProject();
-      notify('Please enter a title or content for the custom slide', 'error');
+
+      alert('Please enter a title or content for the custom slide');
       return;
     }
 
@@ -164,8 +164,8 @@ const SchedulePanel = ({
     setCustomSlideTitle('');
     setCustomSlideContent('');
     
-    const { notify } = useProject();
-    notify('Custom slide added to schedule', 'success');
+
+    alert('Custom slide added to schedule');
   };
 
   return (
@@ -283,7 +283,7 @@ const SchedulePanel = ({
       </Reorder.Group>
 
       {/* Footer Add Buttons */}
-      <div className="p-4 bg-white border-t border-[#E2E2E6] grid grid-cols-2 gap-2">
+      <div className="p-4 bg-white border-t border-[#E2E2E6] grid grid-cols-3 gap-2">
         <button 
           onClick={() => setIsSongLibraryOpen(true)}
           className="flex items-center justify-center gap-2 py-2 bg-[#80000005] text-[#800000] border border-[#80000010] rounded-lg text-[10px] font-black hover:bg-[#800000] hover:text-white transition-all"
@@ -303,10 +303,22 @@ const SchedulePanel = ({
           <Square size={14} /> KOSONG
         </button>
         <button 
-          onClick={() => alert('PowerPoint import coming soon')}
+          onClick={handlePowerPointImport}
           className="flex items-center justify-center gap-2 py-2 bg-[#80000005] text-[#800000] border border-[#80000010] rounded-lg text-[10px] font-black hover:bg-[#800000] hover:text-white transition-all"
         >
           <FileText size={14} /> POWERPOINT
+        </button>
+        <button
+          onClick={() => alert('Lokal File import coming soon')}
+          className="flex items-center justify-center gap-2 py-2 bg-[#80000005] text-[#800000] border border-[#80000010] rounded-lg text-[10px] font-black hover:bg-[#800000] hover:text-white transition-all"
+        >
+          <File size={14} /> LOKAL FILE
+        </button>
+        <button
+          onClick={() => alert('Web Browser coming soon')}
+          className="flex items-center justify-center gap-2 py-2 bg-[#80000005] text-[#800000] border border-[#80000010] rounded-lg text-[10px] font-black hover:bg-[#800000] hover:text-white transition-all"
+        >
+          <Presentation size={14} /> WEB BROWSER
         </button>
       </div>
     </div>
