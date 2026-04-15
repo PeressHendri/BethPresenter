@@ -2,10 +2,74 @@
   "name": "beth-presenter-electron",
   "version": "1.0.0",
   "main": "main.js",
+  "description": "BethPresenter - Professional Church Presentation Software",
+  "author": "BethPresenter Team",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "rebuild": "@electron/rebuild",
+    "postinstall": "@electron/rebuild || true",
+    "dev:all": "cd ../frontend && npm run dev & sleep 3 && electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
   "dependencies": {
-    "electron": "^32.1.2"
+    "better-sqlite3": "^12.9.0",
+    "electron": "^32.1.2",
+    "node-fetch": "^3.3.2",
+    "pptx2json": "^0.0.10",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.bethpresenter.app",
+    "productName": "BethPresenter",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }
